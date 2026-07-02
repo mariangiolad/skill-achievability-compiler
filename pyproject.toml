@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skillc"
+version = "0.3.0"
+description = "Skill Achievability Compiler: decides whether the goal of an agent skill (SKILL.md / agent markdown) is achievable, sound for refutation"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "skill-achievability-compiler contributors" }]
+dependencies = [
+    "z3-solver>=4.12",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4"]
+
+[project.scripts]
+skillc = "skillc.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+skillc = ["data/profiles/*.json", "data/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

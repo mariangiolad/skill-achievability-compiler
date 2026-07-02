@@ -1,0 +1,11 @@
+{
+  "name": "claude-code",
+  "description": "Claude Code CLI default toolset (terminal coding agent). No consumer-app UI tools.",
+  "shell": true,
+  "tools": [
+    "bash", "read", "write", "edit", "glob", "grep", "notebookedit",
+    "webfetch", "websearch", "task", "agent", "todowrite", "taskcreate",
+    "taskupdate", "tasklist", "askuserquestion", "skill", "slashcommand",
+    "exitplanmode", "enterplanmode", "kill_shell", "bashoutput"
+  ]
+}

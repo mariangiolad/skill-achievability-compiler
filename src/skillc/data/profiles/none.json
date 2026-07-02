@@ -1,0 +1,6 @@
+{
+  "name": "none",
+  "description": "Empty capability context: only tools declared in the skill's own frontmatter count.",
+  "shell": false,
+  "tools": []
+}

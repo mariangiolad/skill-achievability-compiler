@@ -1,0 +1,13 @@
+{
+  "name": "claude-ai",
+  "description": "Claude consumer app / Cowork runtime: user-interaction widgets, file presentation, skill persistence, and a sandboxed shell.",
+  "shell": true,
+  "tools": [
+    "bash", "view", "create_file", "str_replace", "insert",
+    "ask_user_input_v0", "present_files", "upload_file", "download_file",
+    "show_widget", "read_me", "read_page", "save_skill",
+    "search_mcp_registry", "suggest_connectors", "web_search", "web_fetch",
+    "artifacts", "repl",
+    "budget_tokens", "compact_20260112", "count_tokens"
+  ]
+}

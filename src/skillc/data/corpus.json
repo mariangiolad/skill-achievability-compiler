@@ -1,0 +1,919 @@
+[
+  {
+    "id": "book_flight_ok",
+    "category": "ACHIEVABLE",
+    "ground_truth": "ACHIEVABLE",
+    "nl": "# Skill: Book a flight and confirm\nGoal: the customer has a booked flight and a confirmation email is sent.\nTools: search_flights, filter_results, book_flight, send_email.\nSteps: search, then filter, then book, then email the confirmation.",
+    "pack": {
+      "name": "book_flight_ok",
+      "roles": [
+        "agent"
+      ],
+      "capabilities": {
+        "search": {
+          "owner": "agent",
+          "add": [
+            "searched"
+          ]
+        },
+        "filter": {
+          "owner": "agent",
+          "pre": "searched",
+          "add": [
+            "filtered"
+          ]
+        },
+        "book": {
+          "owner": "agent",
+          "pre": "filtered",
+          "add": [
+            "booked"
+          ]
+        },
+        "email": {
+          "owner": "agent",
+          "pre": "booked",
+          "add": [
+            "confirmation_sent"
+          ]
+        }
+      },
+      "protocol": [
+        {
+          "act": {
+            "cap": "search",
+            "by": "agent"
+          }
+        },
+        {
+          "act": {
+            "cap": "filter",
+            "by": "agent"
+          }
+        },
+        {
+          "act": {
+            "cap": "book",
+            "by": "agent"
+          }
+        },
+        {
+          "act": {
+            "cap": "email",
+            "by": "agent"
+          }
+        }
+      ],
+      "goal": {
+        "and": [
+          "booked",
+          "confirmation_sent"
+        ]
+      }
+    },
+    "note": ""
+  },
+  {
+    "id": "budget_ok",
+    "category": "REFINEMENT",
+    "ground_truth": "ACHIEVABLE",
+    "nl": "# Skill: Book a flight under $500\nGoal: a flight is booked at a price below 500 and confirmation is sent.\nTools: search, book_cheap (only books fares under 500), send_email.",
+    "pack": {
+      "name": "budget_ok",
+      "roles": [
+        "agent"
+      ],
+      "capabilities": {
+        "search": {
+          "owner": "agent",
+          "add": [
+            "searched"
+          ]
+        },
+        "book_cheap": {
+          "owner": "agent",
+          "pre": "searched",
+          "add": [
+            "booked"
+          ],
+          "nondet": {
+            "price": {
+              "cmp": [
+                "price",
+                "<",
+                500
+              ]
+            }
+          }
+        },
+        "email": {
+          "owner": "agent",
+          "pre": "booked",
+          "add": [
+            "confirmation_sent"
+          ]
+        }
+      },
+      "protocol": [
+        {
+          "act": {
+            "cap": "search",
+            "by": "agent"
+          }
+        },
+        {
+          "act": {
+            "cap": "book_cheap",
+            "by": "agent"
+          }
+        },
+        {
+          "act": {
+            "cap": "email",
+            "by": "agent"
+          }
+        }
+      ],
+      "goal": {
+        "and": [
+          "booked",
+          "confirmation_sent",
+          {
+            "cmp": [
+              "price",
+              "<",
+              500
+            ]
+          }
+        ]
+      }
+    },
+    "note": ""
+  },
+  {
+    "id": "detour_ok",
+    "category": "TOLERANCE",
+    "ground_truth": "ACHIEVABLE",
+    "nl": "# Skill: Research then answer (with optional clarification)\nGoal: a researched answer is delivered.\nThe worker may first ping the user with a status note (a detour that does not\nchange the outcome), then search, then deliver.",
+    "pack": {
+      "name": "detour_ok",
+      "roles": [
+        "worker",
+        "user"
+      ],
+      "capabilities": {
+        "search": {
+          "owner": "worker",
+          "add": [
+            "searched"
+          ]
+        },
+        "deliver": {
+          "owner": "worker",
+          "pre": "searched",
+          "add": [
+            "answered"
+          ]
+        }
+      },
+      "protocol": [
+        {
+          "msg": {
+            "from": "worker",
+            "to": "user",
+            "label": "status_note"
+          }
+        },
+        {
+          "act": {
+            "cap": "search",
+            "by": "worker"
+          }
+        },
+        {
+          "msg": {
+            "from": "worker",
+            "to": "user",
+            "label": "status_note2"
+          }
+        },
+        {
+          "act": {
+            "cap": "deliver",
+            "by": "worker"
+          }
+        }
+      ],
+      "goal": "answered"
+    },
+    "note": "extra status messages (payload-level detail) must not refute the goal"
+  },
+  {
+    "id": "choice_informed_ok",
+    "category": "TOLERANCE",
+    "ground_truth": "ACHIEVABLE",
+    "nl": "# Skill: Triage then handle\nGoal: the ticket is resolved.\nThe router picks 'simple' or 'complex' and TELLS the handler which path it\nchose; the handler then resolves accordingly.",
+    "pack": {
+      "name": "choice_informed_ok",
+      "roles": [
+        "router",
+        "handler"
+      ],
+      "capabilities": {
+        "resolve_simple": {
+          "owner": "handler",
+          "add": [
+            "resolved"
+          ]
+        },
+        "resolve_complex": {
+          "owner": "handler",
+          "add": [
+            "resolved"
+          ]
+        }
+      },
+      "protocol": [
+        {
+          "choice": {
+            "by": "router",
+            "branches": {
+              "simple": [
+                {
+                  "msg": {
+                    "from": "router",
+                    "to": "handler",
+                    "label": "go_simple"
+                  }
+                },
+                {
+                  "act": {
+                    "cap": "resolve_simple",
+                    "by": "handler"
+                  }
+                }
+              ],
+              "complex": [
+                {
+                  "msg": {
+                    "from": "router",
+                    "to": "handler",
+                    "label": "go_complex"
+                  }
+                },
+                {
+                  "act": {
+                    "cap": "resolve_complex",
+                    "by": "handler"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "goal": "resolved"
+    },
+    "note": ""
+  },
+  {
+    "id": "hallucinated_email",
+    "category": "HALLUCINATED_PLANNING",
+    "ground_truth": "IMPOSSIBLE",
+    "nl": "# Skill: Book a flight and confirm\nGoal: flight booked AND confirmation email sent.\nTools available: search, filter, book.   (No email tool is provided.)\nBut the plan still says: ...then send the confirmation email.",
+    "pack": {
+      "name": "hallucinated_email",
+      "roles": [
+        "agent"
+      ],
+      "capabilities": {
+        "search": {
+          "owner": "agent",
+          "add": [
+            "searched"
+          ]
+        },
+        "filter": {
+          "owner": "agent",
+          "pre": "searched",
+          "add": [
+            "filtered"
+          ]
+        },
+        "book": {
+          "owner": "agent",
+          "pre": "filtered",
+          "add": [
+            "booked"
+          ]
+        }
+      },
+      "protocol": [
+        {
+          "act": {
+            "cap": "search",
+            "by": "agent"
+          }
+        },
+        {
+          "act": {
+            "cap": "filter",
+            "by": "agent"
+          }
+        },
+        {
+          "act": {
+            "cap": "book",
+            "by": "agent"
+          }
+        },
+        {
+          "act": {
+            "cap": "send_email",
+            "by": "agent"
+          }
+        }
+      ],
+      "goal": {
+        "and": [
+          "booked",
+          "confirmation_sent"
+        ]
+      }
+    },
+    "note": "plan invokes a tool that does not exist -> MISSING_CAPABILITY"
+  },
+  {
+    "id": "no_establisher",
+    "category": "HALLUCINATED_PLANNING",
+    "ground_truth": "IMPOSSIBLE",
+    "nl": "# Skill: Book a flight and confirm\nGoal: flight booked AND confirmation sent.\nTools: search, filter, book.  No tool can send a confirmation, and the plan\nforgets that step entirely.",
+    "pack": {
+      "name": "no_establisher",
+      "roles": [
+        "agent"
+      ],
+      "capabilities": {
+        "search": {
+          "owner": "agent",
+          "add": [
+            "searched"
+          ]
+        },
+        "filter": {
+          "owner": "agent",
+          "pre": "searched",
+          "add": [
+            "filtered"
+          ]
+        },
+        "book": {
+          "owner": "agent",
+          "pre": "filtered",
+          "add": [
+            "booked"
+          ]
+        }
+      },
+      "protocol": [
+        {
+          "act": {
+            "cap": "search",
+            "by": "agent"
+          }
+        },
+        {
+          "act": {
+            "cap": "filter",
+            "by": "agent"
+          }
+        },
+        {
+          "act": {
+            "cap": "book",
+            "by": "agent"
+          }
+        }
+      ],
+      "goal": {
+        "and": [
+          "booked",
+          "confirmation_sent"
+        ]
+      }
+    },
+    "note": "no capability establishes confirmation_sent -> GOAL_UNSAT (Coq FlightInstance)"
+  },
+  {
+    "id": "over_budget",
+    "category": "REFINEMENT",
+    "ground_truth": "IMPOSSIBLE",
+    "nl": "# Skill: Book a flight under $500\nGoal: flight booked under 500 and confirmation sent.\nThe only booking tool available books premium fares (>= 800).",
+    "pack": {
+      "name": "over_budget",
+      "roles": [
+        "agent"
+      ],
+      "capabilities": {
+        "search": {
+          "owner": "agent",
+          "add": [
+            "searched"
+          ]
+        },
+        "book_premium": {
+          "owner": "agent",
+          "pre": "searched",
+          "add": [
+            "booked"
+          ],
+          "nondet": {
+            "price": {
+              "cmp": [
+                "price",
+                ">=",
+                800
+              ]
+            }
+          }
+        },
+        "email": {
+          "owner": "agent",
+          "pre": "booked",
+          "add": [
+            "confirmation_sent"
+          ]
+        }
+      },
+      "protocol": [
+        {
+          "act": {
+            "cap": "search",
+            "by": "agent"
+          }
+        },
+        {
+          "act": {
+            "cap": "book_premium",
+            "by": "agent"
+          }
+        },
+        {
+          "act": {
+            "cap": "email",
+            "by": "agent"
+          }
+        }
+      ],
+      "goal": {
+        "and": [
+          "booked",
+          "confirmation_sent",
+          {
+            "cmp": [
+              "price",
+              "<",
+              500
+            ]
+          }
+        ]
+      }
+    },
+    "note": "refinement on price is unsatisfiable along every run -> GOAL_UNSAT"
+  },
+  {
+    "id": "blocked_precondition",
+    "category": "INFINITE_LOOP",
+    "ground_truth": "IMPOSSIBLE",
+    "nl": "# Skill: Publish a report\nGoal: the report is published.\npublish requires the report to be APPROVED; but there is no approval tool and\nnothing in the plan ever approves it, so publish can never fire.",
+    "pack": {
+      "name": "blocked_precondition",
+      "roles": [
+        "agent"
+      ],
+      "capabilities": {
+        "draft": {
+          "owner": "agent",
+          "add": [
+            "drafted"
+          ]
+        },
+        "publish": {
+          "owner": "agent",
+          "pre": {
+            "and": [
+              "drafted",
+              "approved"
+            ]
+          },
+          "add": [
+            "published"
+          ]
+        }
+      },
+      "protocol": [
+        {
+          "act": {
+            "cap": "draft",
+            "by": "agent"
+          }
+        },
+        {
+          "act": {
+            "cap": "publish",
+            "by": "agent"
+          }
+        }
+      ],
+      "goal": "published"
+    },
+    "note": "guard 'approved' never establishable -> BLOCKED_GUARD (the retry-forever cause)"
+  },
+  {
+    "id": "deadlock_unobserved",
+    "category": "DEADLOCK",
+    "ground_truth": "IMPOSSIBLE",
+    "nl": "# Skill: Plan / worker collaboration\nGoal: the task result is delivered.\nThe worker decides whether to ASK a clarifying question or to DELIVER. In the\n'ask' branch the planner must answer -- but the planner is never told the\nworker chose to ask, so it just keeps waiting for a result. Classic freeze.",
+    "pack": {
+      "name": "deadlock_unobserved",
+      "roles": [
+        "planner",
+        "worker"
+      ],
+      "capabilities": {
+        "answer": {
+          "owner": "planner",
+          "add": [
+            "answered"
+          ]
+        },
+        "deliver": {
+          "owner": "worker",
+          "pre": "answered",
+          "add": [
+            "delivered"
+          ]
+        },
+        "deliver_direct": {
+          "owner": "worker",
+          "add": [
+            "delivered"
+          ]
+        }
+      },
+      "protocol": [
+        {
+          "choice": {
+            "by": "worker",
+            "branches": {
+              "ask": [
+                {
+                  "act": {
+                    "cap": "answer",
+                    "by": "planner"
+                  }
+                },
+                {
+                  "act": {
+                    "cap": "deliver",
+                    "by": "worker"
+                  }
+                }
+              ],
+              "direct": [
+                {
+                  "act": {
+                    "cap": "deliver_direct",
+                    "by": "worker"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "goal": "delivered"
+    },
+    "note": "planner must act in 'ask' branch with no distinguishing receive -> NON_PROJECTABLE"
+  },
+  {
+    "id": "missing_tool_chain",
+    "category": "HALLUCINATED_PLANNING",
+    "ground_truth": "IMPOSSIBLE",
+    "nl": "# Skill: Refund a customer\nGoal: refund issued AND ledger updated.\nTools: lookup_order, issue_refund.   The plan also 'updates the ledger' but no\nledger tool exists.",
+    "pack": {
+      "name": "missing_tool_chain",
+      "roles": [
+        "agent"
+      ],
+      "capabilities": {
+        "lookup": {
+          "owner": "agent",
+          "add": [
+            "order_found"
+          ]
+        },
+        "refund": {
+          "owner": "agent",
+          "pre": "order_found",
+          "add": [
+            "refunded"
+          ]
+        }
+      },
+      "protocol": [
+        {
+          "act": {
+            "cap": "lookup",
+            "by": "agent"
+          }
+        },
+        {
+          "act": {
+            "cap": "refund",
+            "by": "agent"
+          }
+        },
+        {
+          "act": {
+            "cap": "update_ledger",
+            "by": "agent"
+          }
+        }
+      ],
+      "goal": {
+        "and": [
+          "refunded",
+          "ledger_updated"
+        ]
+      }
+    },
+    "note": "MISSING_CAPABILITY on update_ledger"
+  },
+  {
+    "id": "spurious_payload",
+    "category": "SPURIOUS",
+    "ground_truth": "IMPOSSIBLE",
+    "nl": "# Skill: Book a flight under $500\nGoal: booked under 500 and confirmed.\nThe 'filter_cheap' tool CLAIMS to keep only fares under 500, and the compaction\ntrusts that claim -- but in this market every real fare is >= 800, so no run\nactually succeeds. The structure is fine; the payload claim is false.",
+    "pack": {
+      "name": "spurious_payload",
+      "roles": [
+        "agent"
+      ],
+      "capabilities": {
+        "search": {
+          "owner": "agent",
+          "add": [
+            "searched"
+          ]
+        },
+        "filter_cheap": {
+          "owner": "agent",
+          "pre": "searched",
+          "add": [
+            "filtered"
+          ],
+          "nondet": {
+            "price": {
+              "cmp": [
+                "price",
+                "<",
+                500
+              ]
+            }
+          }
+        },
+        "book": {
+          "owner": "agent",
+          "pre": "filtered",
+          "add": [
+            "booked"
+          ]
+        },
+        "email": {
+          "owner": "agent",
+          "pre": "booked",
+          "add": [
+            "confirmation_sent"
+          ]
+        }
+      },
+      "protocol": [
+        {
+          "act": {
+            "cap": "search",
+            "by": "agent"
+          }
+        },
+        {
+          "act": {
+            "cap": "filter_cheap",
+            "by": "agent"
+          }
+        },
+        {
+          "act": {
+            "cap": "book",
+            "by": "agent"
+          }
+        },
+        {
+          "act": {
+            "cap": "email",
+            "by": "agent"
+          }
+        }
+      ],
+      "goal": {
+        "and": [
+          "booked",
+          "confirmation_sent",
+          {
+            "cmp": [
+              "price",
+              "<",
+              500
+            ]
+          }
+        ]
+      }
+    },
+    "note": "FALSE ACHIEVABLE: payload faithfulness of filter_cheap is a Layer-C (runtime) obligation, not decided here. Expected & sound per T3."
+  },
+  {
+    "id": "spurious_intent",
+    "category": "SPURIOUS",
+    "ground_truth": "IMPOSSIBLE",
+    "nl": "# Skill: Schedule a meeting\nGoal (what the USER meant): schedule with the RIGHT attendees next week.\nThe compacted goal only says 'meeting_scheduled'. A plan that schedules an\nempty meeting satisfies the formal goal but not the user's intent.",
+    "pack": {
+      "name": "spurious_intent",
+      "roles": [
+        "agent"
+      ],
+      "capabilities": {
+        "create_event": {
+          "owner": "agent",
+          "add": [
+            "meeting_scheduled"
+          ]
+        }
+      },
+      "protocol": [
+        {
+          "act": {
+            "cap": "create_event",
+            "by": "agent"
+          }
+        }
+      ],
+      "goal": "meeting_scheduled"
+    },
+    "note": "FALSE ACHIEVABLE: intent fidelity (does the formal goal capture what the user meant) is the top-edge residue, surfaced for human review, not decided."
+  },
+  {
+    "id": "recursion_ok",
+    "category": "ACHIEVABLE",
+    "ground_truth": "ACHIEVABLE",
+    "nl": "# Skill: Retry search until found, then answer\nGoal: answer delivered. search may be tried; once found, deliver.",
+    "pack": {
+      "name": "recursion_ok",
+      "roles": [
+        "worker"
+      ],
+      "capabilities": {
+        "search": {
+          "owner": "worker",
+          "add": [
+            "found"
+          ]
+        },
+        "deliver": {
+          "owner": "worker",
+          "pre": "found",
+          "add": [
+            "answered"
+          ]
+        }
+      },
+      "protocol": [
+        {
+          "act": {
+            "cap": "search",
+            "by": "worker"
+          }
+        },
+        {
+          "act": {
+            "cap": "deliver",
+            "by": "worker"
+          }
+        }
+      ],
+      "goal": "answered"
+    },
+    "note": ""
+  },
+  {
+    "id": "two_goals_one_missing",
+    "category": "HALLUCINATED_PLANNING",
+    "ground_truth": "IMPOSSIBLE",
+    "nl": "# Skill: Onboard employee\nGoal: account created AND badge issued.\nTools: create_account only. Badge system not integrated.",
+    "pack": {
+      "name": "two_goals_one_missing",
+      "roles": [
+        "agent"
+      ],
+      "capabilities": {
+        "create_account": {
+          "owner": "agent",
+          "add": [
+            "account_created"
+          ]
+        }
+      },
+      "protocol": [
+        {
+          "act": {
+            "cap": "create_account",
+            "by": "agent"
+          }
+        }
+      ],
+      "goal": {
+        "and": [
+          "account_created",
+          "badge_issued"
+        ]
+      }
+    },
+    "note": "badge_issued has no establisher -> GOAL_UNSAT"
+  },
+  {
+    "id": "choice_one_branch_ok",
+    "category": "TOLERANCE",
+    "ground_truth": "ACHIEVABLE",
+    "nl": "# Skill: Pay invoice by card or transfer\nGoal: invoice paid. Either branch (card or transfer) reaches it; the payer is\ninformed which rail to use.",
+    "pack": {
+      "name": "choice_one_branch_ok",
+      "roles": [
+        "sys",
+        "payer"
+      ],
+      "capabilities": {
+        "pay_card": {
+          "owner": "payer",
+          "add": [
+            "paid"
+          ]
+        },
+        "pay_transfer": {
+          "owner": "payer",
+          "add": [
+            "paid"
+          ]
+        }
+      },
+      "protocol": [
+        {
+          "choice": {
+            "by": "sys",
+            "branches": {
+              "card": [
+                {
+                  "msg": {
+                    "from": "sys",
+                    "to": "payer",
+                    "label": "use_card"
+                  }
+                },
+                {
+                  "act": {
+                    "cap": "pay_card",
+                    "by": "payer"
+                  }
+                }
+              ],
+              "transfer": [
+                {
+                  "msg": {
+                    "from": "sys",
+                    "to": "payer",
+                    "label": "use_transfer"
+                  }
+                },
+                {
+                  "act": {
+                    "cap": "pay_transfer",
+                    "by": "payer"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "goal": "paid"
+    },
+    "note": ""
+  }
+]

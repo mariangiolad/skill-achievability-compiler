@@ -1,0 +1,1075 @@
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{mathpartir}
+\providecommand{\llbracket}{[\![}
+\providecommand{\rrbracket}{]\!]}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{titlesec}
+\usepackage{pifont}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds}
+\usepackage[colorlinks=true]{hyperref}
+
+\definecolor{navy}{RGB}{31,58,95}
+\definecolor{steel}{RGB}{46,74,107}
+\definecolor{boxbg}{RGB}{243,244,246}
+\hypersetup{linkcolor=navy,citecolor=navy,urlcolor=steel}
+
+\titleformat{\section}{\normalfont\large\bfseries\sffamily\color{navy}}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\normalfont\normalsize\bfseries\sffamily\color{steel}}{\thesubsection}{0.5em}{}
+\titlespacing*{\section}{0pt}{1.4ex plus .3ex}{0.7ex}
+\titlespacing*{\subsection}{0pt}{1.0ex plus .2ex}{0.5ex}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{proposition}{Proposition}
+\newtheorem{corollary}{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+
+\lstdefinestyle{coq}{basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{boxbg},frame=single,rulecolor=\color{gray!40},
+  framesep=5pt,xleftmargin=4pt,xrightmargin=4pt,columns=fullflexible,
+  keepspaces=true,breaklines=true,aboveskip=6pt,belowskip=6pt}
+
+% notation
+\newcommand{\reach}{\rightsquigarrow}
+\newcommand{\reachs}{\reach^{*}}
+\newcommand{\CapS}{\mathsf{Cap}}
+\newcommand{\Pred}{\mathsf{Pred}}
+\newcommand{\Var}{\mathsf{Var}}
+\newcommand{\Lab}{\mathsf{Lab}}
+\newcommand{\pre}{\mathit{pre}}
+\newcommand{\eff}{\mathit{eff}}
+\newcommand{\Add}{\mathit{Add}}
+\newcommand{\Del}{\mathit{Del}}
+\newcommand{\Asg}{\mathit{Asg}}
+\newcommand{\Nd}{\mathit{Nd}}
+\newcommand{\apply}{\mathrm{apply}}
+\newcommand{\seither}{\mathrm{sp}}
+\newcommand{\dom}{\mathrm{dom}}
+\newcommand{\caps}{\mathrm{caps}}
+\newcommand{\goal}{\mathit{goal}}
+\newcommand{\gphi}{\varphi_{\mathit{goal}}}
+\newcommand{\restr}[1]{{\restriction}#1}
+\newcommand{\achbox}{\vDash\Diamond}
+\newcommand{\id}[1]{\texttt{#1}}
+
+\setlength{\parskip}{0.35ex}
+\setlength{\parindent}{1.2em}
+
+\begin{document}
+
+\begin{center}
+  {\sffamily\bfseries\LARGE Can This Agent Even Do That?}\\[2pt]
+  {\sffamily\bfseries\large\color{navy} A Decidable Goal-Achievability Type Discipline\\ for LLM-Synthesized Agent Skills}\\[8pt]
+  {\itshape Anonymous Author(s)}\\[2pt]
+  {\small Affiliation \;$\cdot$\; Draft (technical core) \;$\cdot$\; a mechanized artifact accompanies this paper}
+\end{center}
+\vspace{0.5em}
+
+\begin{abstract}
+\noindent
+Autonomous agents are increasingly configured by \emph{skills}: natural-language
+specifications that an LLM drafts from a user's stated intent and then executes,
+often across several cooperating agents. Such drafts fail expensively at run time
+on plans that were impossible from the start --- a step that invokes a tool the
+agent does not have, a goal conjunct nothing can establish, a budget no run can
+meet, or a multi-agent handoff that deadlocks. We present a \emph{skill compiler}
+that decides, before execution and without an LLM judge, whether a skill's
+\emph{goal is achievable at all}. The compiler fuses two mature disciplines not
+previously combined for this purpose: capability-guarded reachability from
+automated planning, and projectability and deadlock-freedom from multiparty
+session types, decided over an intent-synthesized, goal-marked global type. The
+LLM that compacts prose into a formal pack of preconditions, effects, and goals
+is treated as \emph{untrusted}; the checker is a mechanically verified core. We
+prove in Coq that the checker is \emph{sound for refutation} --- a verdict of
+\emph{impossible} is never wrong --- while being deliberately \emph{incomplete}
+for achievability, with the residue confined to two precisely characterized edges
+(payload faithfulness and intent fidelity) handed respectively to a runtime
+monitor and a human checkpoint. We give the syntax, an operational semantics, the
+typing and achievability judgments with inference rules, and the metatheory:
+refutation soundness, tolerance soundness, capability monotonicity, decidability
+within a static-topology fragment, and undecidability once agents may spawn
+participants at run time. An implementation and a corpus spanning the canonical
+agent failure modes confirm the theory: zero false impossibilities, and every
+false achievability an instance of the two deferred edges. This extended
+version adds four implementation-driven strengthenings with proofs --- a
+protocol-independent \emph{establisher-closure} refutation that survives the
+undecidable autonomous fragment, \emph{observed choice} for
+conversation-embedded coordination, an \emph{adversarial} (must-)achievability
+mode whose refutations inherit soundness compositionally, and
+counterexample-guided compaction repair --- and an evaluation on a corpus of
+real, deployed skills: every deployed skill checks achievable in its home
+capability context, every seeded semantic fault is refuted with the missing
+tool or dead goal conjunct named.
+\end{abstract}
+
+\section{Introduction}
+
+A modern agent is rarely a single model call. It is a \emph{skill}: a
+specification --- increasingly authored in natural language and drafted by an LLM
+from a user's stated goal --- that names tools, describes a plan, and coordinates
+one or more agents toward an outcome. The appeal is that a non-expert can say
+\emph{what} they want and have the system assemble the \emph{how}. The hazard is
+that the assembled how is frequently \emph{impossible}, and nothing notices until
+execution has already spent tokens, taken actions, and, in the multi-agent case,
+deadlocked halfway.
+
+The failures are structural and recurring. A plan \emph{books a flight and emails
+a confirmation} although no email tool is in scope (a hallucinated capability). A
+plan pursues \emph{a flight under \$500} when the only booking tool returns
+premium fares (an unsatisfiable refinement). A planner waits for a worker's result
+while the worker waits for the planner's answer, each listening for a message the
+other never sends (a coordination deadlock). In every case the goal was unreachable
+\emph{a priori}, and a cheap static check could have said so.
+
+This paper asks a deliberately narrow question and answers it with a guarantee:
+\textbf{given an LLM-drafted skill, can its goal be achieved at all?} We are not
+(here) verifying that every step is safe, nor that the agent behaves correctly on
+every input. We decide \emph{achievability}, tolerantly --- small details, detours,
+and payload variation must not raise a false alarm --- and \emph{soundly for
+refutation}: when the compiler says a goal is impossible, it is right.
+
+\subsection{The idea, and the trust boundary}
+
+The architecture has two halves separated by a trust boundary. An LLM performs
+\emph{compaction}: it reads the prose skill and distills it into a formal
+\emph{pack} --- capabilities annotated with preconditions and effects, a
+goal-marked global protocol, and an initial state. This step is \emph{untrusted};
+the LLM may misread the prose. A deterministic \emph{checker} then decides
+achievability over the pack, and the checker is mechanically proved sound. The
+division is what makes the system honest: a faulty compaction can only ever cause
+a false \emph{achievable} (caught downstream), never a false \emph{impossible}
+about the pack it received.
+
+\begin{center}
+\begin{tikzpicture}[font=\sffamily\footnotesize,node distance=6mm,
+  box/.style={draw,rounded corners=2pt,inner sep=4pt,align=center,minimum height=8mm}]
+  \node[box] (nl) {natural-language\\ skill};
+  \node[box,fill=red!6,draw=red!40,right=of nl] (llm) {LLM compaction\\ \textbf{\textcolor{red!60!black}{untrusted}}};
+  \node[box,right=of llm] (pack) {pack\\ (formal)};
+  \node[box,fill=green!8,draw=green!45!black,right=of pack] (chk) {checker\\ \textbf{\textcolor{green!40!black}{Coq-proved}}};
+  \node[box,right=of chk] (v) {verdict};
+  \draw[-{Stealth[length=2mm]}] (nl)--(llm);
+  \draw[-{Stealth[length=2mm]}] (llm)--(pack);
+  \draw[-{Stealth[length=2mm]}] (pack)--(chk);
+  \draw[-{Stealth[length=2mm]}] (chk)--(v);
+\end{tikzpicture}
+\end{center}
+
+Crucially, the semantic gap between \emph{what the user meant} and \emph{what was
+formalized} is not eliminated --- it is \emph{relocated and concentrated} into one
+inspectable checkpoint at compaction time, rather than scattered, unobserved,
+across every run. That relocation is the central design move.
+
+\subsection{Contributions}
+\begin{enumerate}\setlength{\itemsep}{2pt}
+\item \textbf{A goal-achievability type discipline} (\S3--\S5) that fuses
+capability-guarded reachability (planning) with projectability and
+deadlock-freedom (multiparty session types), decided over an intent-synthesized,
+goal-marked global type. To our knowledge this fusion, aimed at LLM-drafted agent
+skills, is new.
+\item \textbf{A mechanized soundness core} (\S6) in Coq: refutation soundness
+(a verdict of impossible is never wrong), tolerance soundness (coarsening the
+abstraction preserves refutation), and capability monotonicity (more tools never
+make a goal impossible) --- all axiom-free.
+\item \textbf{A decidability boundary result} (\S6.4): achievability is decidable
+in a static-topology fragment and undecidable once agents may spawn participants
+at run time. Autonomy is exactly what crosses the line.
+\item \textbf{An implementation and evaluation} (\S8--\S9): a checker deciding
+all four premises of the judgment (capability soundness, projection with merge,
+Gay--Hole conformance, may-reachability), an LLM-compaction front-end with a
+schema gate, and a corpus spanning the canonical failure modes. Results match
+the theory: zero false impossibilities; every false achievability is one of the
+two deferred residues.
+\item \textbf{Implementation-driven strengthenings, with proofs} (\S7):
+the establisher-closure certificate (protocol-independent refutation, valid even
+under dynamic spawning), observed choice (conversation-embedded selection is an
+implicit broadcast; unobserved choice is a ${\ge}3$-party asynchronous
+phenomenon), adversarial must-achievability (refutation soundness inherited
+compositionally from Theorem~\ref{thm:ref}), and counterexample-guided
+compaction repair at the trust boundary.
+\item \textbf{Validation on real skills} (\S9): on Anthropic's public skills
+corpus, the compiler judges every deployed skill achievable in its home
+capability context (no false alarms), refutes the same skills under a
+capability-poorer runtime with the exact missing tool and source line, and
+catches every seeded semantic fault (dropped capability, stripped goal
+establisher) naming the wound.
+\end{enumerate}
+
+\section{Overview by Example}
+
+Consider a one-agent skill whose goal is \emph{a flight is booked and a
+confirmation is sent}. The author writes prose; the LLM compacts it. Two
+compactions differ only in whether an email tool is in scope.
+\[
+\gphi \;=\; \mathsf{booked} \,\wedge\, \mathsf{confirmation\_sent}
+\]
+\begin{center}\small
+\begin{tabular}{@{}ll@{}}
+\textbf{variant A (no email tool)} & \textbf{variant B} \\
+$\mathsf{search}: \Add\,\{\mathsf{searched}\}$ & $\dots$ A, plus: \\
+$\mathsf{filter}: \pre\ \mathsf{searched};\ \Add\,\{\mathsf{filtered}\}$ & $\mathsf{email}: \pre\ \mathsf{booked};$ \\
+$\mathsf{book}: \pre\ \mathsf{filtered};\ \Add\,\{\mathsf{booked}\}$ & $\qquad\Add\,\{\mathsf{confirmation\_sent}\}$
+\end{tabular}
+\end{center}
+Under STRIPS \emph{frame semantics} --- a predicate is false unless an effect
+makes it true --- variant A has no action establishing
+$\mathsf{confirmation\_sent}$, so no reachable state satisfies the goal: the
+checker returns \emph{impossible} and points at the missing establisher. Variant B
+reaches the goal along $\mathsf{search}\cdot\mathsf{filter}\cdot\mathsf{book}\cdot
+\mathsf{email}$, returned as a witness. The same example is mechanized in \S6 (the
+concrete instance \id{FlightInstance}): variant A is \emph{provably} unachievable,
+yet a booking is still reachable --- the refutation is about the missing tool, not
+a dead protocol.
+
+Tolerance is essential, and is where a naive reachability check would misfire.
+Extra status messages, a clarifying detour, or payload variation must not refute
+the goal. We obtain this from three orthogonal relaxations made precise in
+\S4--\S5: \emph{existential may-reachability} (a single good path suffices),
+\emph{session subtyping} (interface slack in the safe direction), and
+\emph{goal-relevant abstraction} (payload detail collapsed before checking).
+
+\section{Syntax}
+
+We fix disjoint sets of predicates $p\in\Pred$ (boolean), numeric variables
+$x\in\Var$, roles $\mathsf{p},\mathsf{q}\in\mathcal R$, capability names
+$a\in\CapS$, and message labels $\ell\in\Lab$.
+
+\subsection{State logic}
+\[
+\begin{array}{rcl@{\qquad}l}
+e &::=& x \mid n \mid e+e \mid e-e \mid c\cdot e & (c,n\in\mathbb Z)\\[1pt]
+\varphi &::=& p \mid \top \mid \bot \mid \neg\varphi \mid \varphi\wedge\varphi
+  \mid \varphi\vee\varphi \mid e\bowtie e & \bowtie\,\in\{<,\le,=,\ge,>,\ne\}
+\end{array}
+\]
+The state logic $\mathcal L$ is quantifier-free linear integer arithmetic with
+uninterpreted boolean predicates --- a decidable fragment for which entailment
+$\vDash$ and satisfiability are discharged by an SMT solver. The
+implementation's expression grammar accepts general products $e\cdot e$;
+decidability (Theorem~\ref{thm:dec}) is claimed for linear use only, and the
+checker resolves any solver \emph{unknown} conservatively as satisfiable, so
+outside the linear fragment it can lose refutations but never soundness.
+
+\subsection{Worlds and capabilities}
+A \emph{world} $W=\langle B,N\rangle$ valuates predicates $B:\Pred\to\mathbb B$ and
+numeric variables $N:\Var\to\mathbb Z$. A \emph{capability context} $\Gamma$ maps
+each available tool $a$ to a guarded effect:
+\[
+\Gamma(a)=\langle \pre_a,\eff_a\rangle,\quad \pre_a\in\mathcal L,\qquad
+\eff_a=\langle \Add_a\subseteq\Pred,\ \Del_a\subseteq\Pred,\
+\Asg_a:\Var\rightharpoonup e,\ \Nd_a:\Var\rightharpoonup\mathcal L\rangle
+\]
+\[
+a\notin\dom(\Gamma)\quad\Longleftrightarrow\quad\text{the agent does \emph{not}
+possess tool }a\quad(\text{no hallucinated tools}).
+\]
+$\Add/\Del$ are the STRIPS add- and delete-lists; $\Asg$ gives deterministic
+numeric updates $x:=e$; $\Nd$ gives \emph{nondeterministic} updates $x:=\ast$
+constrained by a formula over the new value (used to model post-conditions such as
+\emph{``books a fare under 500''}).
+
+\subsection{Global types, local types, skills}
+A \emph{goal-marked global type} $G$ describes the whole choreography;
+\emph{local types} $T$ are its per-role projections; a \emph{skill} $S_{\mathsf p}$
+is the behaviour the author declares for role $\mathsf p$.
+\[
+\begin{array}{rcll}
+G &::=& \mathsf{p}{\to}\mathsf{q}:\ell\langle\hat\alpha\rangle.\,G
+  & \text{message ($\mathsf p$ sends $\ell$ to $\mathsf q$, payload abstracted)}\\
+  &\mid& \mathsf{p}\triangleright\{\ell_i:G_i\}_{i\in I} & \text{choice ($\mathsf p$ selects a branch)}\\
+  &\mid& a@\mathsf{p}.\,G & \text{action (role $\mathsf p$ invokes capability $a$)}\\
+  &\mid& \checkmark\varphi.\,G & \text{goal marker (the protocol claims $\varphi$ holds)}\\
+  &\mid& \mathsf{spawn}\ \mathsf{q}.\,G & \text{dynamic participant (outside the decidable fragment)}\\
+  &\mid& \mu X.\,G \mid X \mid \mathbf{end} & \\[3pt]
+T &::=& \mathsf{q}!\ell\langle\hat\alpha\rangle.T \mid
+  \mathsf{q}?\ell\langle\hat\alpha\rangle.T \mid
+  \oplus\{\ell_i:T_i\} \mid \&\{\ell_i:T_i\} \\
+  & & \mid\ a.T \mid
+  \checkmark\varphi.T \mid \mu X.T \mid X \mid \mathbf{end}\\[3pt]
+S_{\mathsf p} &::=& \text{(same grammar as $T$)} & \text{the declared behaviour of role $\mathsf p$}
+\end{array}
+\]
+The abstraction $\alpha$ maps concrete messages to goal-relevant tokens
+$\hat\alpha$; it is the tolerance dial of \S4.4. Only $a@\mathsf p$ steps change
+the world; messages carry coordination information and are abstracted for
+achievability. Well-formedness (enforced by the implementation's schema gate)
+requires recursion variables $X$ to occur only in \emph{tail} position under
+uniquely-named binders --- the fragment of Theorem~\ref{thm:dec} --- and
+$\mathsf{spawn}$ marks the protocol as outside that fragment
+(Theorem~\ref{thm:undec}); choices may carry the annotations
+$\triangleright^{\mathrm{obs}}$ (\S4.3) and $\triangleright^{\mathrm{ext}}$
+(\S7.2).
+
+\section{Operational Semantics}
+
+\subsection{World transitions}
+A capability fires when its guard holds, producing a successor world. Because
+$\Nd$ is nondeterministic, $\langle W\rangle\,a\,\langle W'\rangle$ may relate one
+world to many.
+\begin{mathpar}
+\inferrule[World-Act]{W\vDash\pre_a \\ W'\in\apply(\eff_a,W)}
+  {\langle W\rangle\;a\;\langle W'\rangle}
+\end{mathpar}
+\[
+\apply(\eff_a,\langle B,N\rangle)=\langle B',N'\rangle,\qquad
+B'=(B\cup\Add_a)\setminus\Del_a
+\]
+\[
+N'(x)=\begin{cases}
+\llbracket\Asg_a(x)\rrbracket_N & \text{if } x\in\dom(\Asg_a)\\
+v \text{ with } \langle B,N[x{\mapsto}v]\rangle\vDash\Nd_a(x) & \text{if } x\in\dom(\Nd_a)\\
+N(x) & \text{otherwise (frame)}
+\end{cases}
+\]
+
+\subsection{Configurations and may-reachability}
+A \emph{configuration} is a pair $(G,W)$. The transition $\reach$ advances
+control, firing world transitions at actions and branching at choices; $\reachs$
+is its reflexive-transitive closure.
+\begin{mathpar}
+\inferrule[R-Act]{\langle W\rangle\,a\,\langle W'\rangle}{(a@\mathsf p.\,G,\,W)\reach(G,\,W')}
+\and
+\inferrule[R-Msg]{ }{(\mathsf p{\to}\mathsf q{:}\ell\langle\hat\alpha\rangle.G,\,W)\reach(G,\,W)}
+\and
+\inferrule[R-Sel]{k\in I}{(\mathsf p\triangleright\{\ell_i:G_i\}_{i\in I},\,W)\reach(G_k,\,W)}
+\and
+\inferrule[R-Rec]{ }{(\mu X.G,\,W)\reach(G[\mu X.G/X],\,W)}
+\and
+\inferrule[R-Chk]{ }{(\checkmark\varphi.G,\,W)\reach(G,\,W)}
+\end{mathpar}
+\textsc{R-Chk} makes goal markers \emph{observation points}, not blocking
+assertions: a run may pass an unsatisfied marker and satisfy the goal later
+(and the checker does exactly this). A configuration is \emph{goal-satisfying}
+when control is at a goal marker or terminus and the world entails the goal:
+\[
+\goal(\checkmark\varphi.G,W)\iff W\vDash\varphi,\qquad
+\goal(\mathbf{end},W)\iff W\vDash\gphi.
+\]
+\[
+\Gamma;G\achbox\gphi\iff
+\exists W_0\vDash\mathit{init}.\ \exists(G',W').\ (G,W_0)\reachs(G',W')\ \wedge\ \goal(G',W').
+\]
+The diamond is \emph{existential}: a single witnessing run suffices. This is the
+formal source of detour-tolerance. The initial condition $\mathit{init}$ has
+two parts, mirroring the world: a set of predicates true at the start (the
+frame closes it --- everything unlisted is false, so $B_0$ is \emph{fixed})
+and a set of $\mathcal L$-constraints on the numeric part, over which the
+existential genuinely ranges.
+
+\subsection{Projection and realizability}
+Projection $G\restr{\mathsf p}$ extracts role $\mathsf p$'s local type, using the
+merge $\sqcap$ on continuations of a choice in which $\mathsf p$ is not the
+selector. It is \emph{partial}: undefined exactly when a non-selecting role cannot
+tell which branch was taken (the \emph{unobserved-choice} condition).
+\begin{mathpar}
+\inferrule[Proj-Sel]{G_i\restr{\mathsf p}=T_i\ (i\in I)}
+  {(\mathsf p\triangleright\{\ell_i:G_i\})\restr{\mathsf p}=\oplus\{\ell_i:T_i\}}
+\and
+\inferrule[Proj-Brn]{G_i\restr{\mathsf q}=\mathsf r?\ell'_i.\,T_i\ (i\in I) \\ \text{the }\ell'_i\text{ pairwise distinct, common sender }\mathsf r}
+  {(\mathsf p\triangleright\{\ell_i:G_i\})\restr{\mathsf q}=\&\{\ell'_i:T_i\}}
+\and
+\inferrule[Proj-Mrg]{G_i\restr{\mathsf q}=T_i\ (i\in I) \\ T=\sqcap_{i}\,T_i \text{ defined}}
+  {(\mathsf p\triangleright\{\ell_i:G_i\})\restr{\mathsf q}=T}
+\end{mathpar}
+$G$ is \emph{realizable}, $G\Downarrow\{T_{\mathsf p}\}$, when $G\restr{\mathsf p}$
+is defined for every role. Non-realizability is the static signature of a
+deadlocking handoff. \textsc{Proj-Brn} as implemented is slightly more
+liberal than the textbook rule: the distinguishing receive need not come from
+the selector $\mathsf p$ --- any \emph{common} informant $\mathsf r$ whose
+labels separate the branches suffices (the knowledge of the choice may be
+relayed); it must, however, be the \emph{first} thing $\mathsf q$ does in
+each branch.
+
+\paragraph{Observed choice.} Real skills are frequently \emph{one
+conversation}: an assistant and its user in a chat, or an agent and a business
+on a phone call. On such a medium the outcome of a choice is announced by the
+medium itself --- every participant hears which way the call went. We therefore
+allow a choice to be annotated \emph{observed},
+$\mathsf p\triangleright^{\mathrm{obs}}\{\ell_i:G_i\}$, projecting for a
+non-selector as an external choice on the selection labels directly:
+\begin{mathpar}
+\inferrule[Proj-Obs]{G_i\restr{\mathsf q}=T_i\ (i\in I) \\ \mathsf q\ne\mathsf p}
+  {(\mathsf p\triangleright^{\mathrm{obs}}\{\ell_i:G_i\})\restr{\mathsf q}=\&\{\ell_i:T_i\}}
+\end{mathpar}
+(when all $T_i$ coincide the merge applies as usual and the annotation is
+inert). Section~\ref{sec:obs} proves this sound by desugaring into explicit
+broadcasts and observes that the unobserved-choice condition is intrinsically a
+${\ge}3$-party \emph{asynchronous} phenomenon.
+
+\subsection{Subtyping and the tolerance dial}
+We use Gay--Hole branching subtyping $\le$: a skill may offer \emph{more} external
+(receive) choices and \emph{fewer} internal (send) choices than its contract and
+remain safe.
+\begin{mathpar}
+\inferrule[Sub-Ext]{I\supseteq J \\ T_i\le T'_i\ (i\in J)}
+  {\&\{\ell_i:T_i\}_{i\in I}\ \le\ \&\{\ell_j:T'_j\}_{j\in J}}
+\and
+\inferrule[Sub-Int]{I\subseteq J \\ T_i\le T'_i\ (i\in I)}
+  {\oplus\{\ell_i:T_i\}_{i\in I}\ \le\ \oplus\{\ell_j:T'_j\}_{j\in J}}
+\end{mathpar}
+Tolerance has three independent knobs: the existential $\Diamond$ (\S4.2),
+subtyping $\le$ (here), and the granularity of $\alpha$. ``Flexible, tolerant of
+small details'' is the profile $\langle$coarse $\alpha$, $\Diamond$, linear
+$\mathcal L\rangle$; a later safety layer flips the same machinery to the universal
+$\Box$ over permission predicates.
+
+\section{The Achievability Type System}
+
+Achievability factors into four premises, each separately decidable, combined by
+the top rule \textsc{Ach}.
+
+\subsection{Capability and goal typing}
+\begin{mathpar}
+\inferrule[T-Act]{\Gamma(a)=\langle\pre,\eff\rangle \\ \varphi\vDash\pre}
+  {\Gamma\vdash\{\varphi\}\,a\,\{\seither(\varphi,\eff)\}}
+\and
+\inferrule[T-Miss]{a\notin\dom(\Gamma)}
+  {\Gamma\vdash a\ \triangleright\ \text{\ding{55}}\ (\textsc{Missing\_Capability})}
+\end{mathpar}
+$\seither(\varphi,\eff)$ is the strongest postcondition of the STRIPS effect.
+\textsc{T-Miss} fires on hallucinated planning: the plan names a tool the context
+does not grant, and achievability is refuted without any search.
+
+\subsection{The achievability judgment}
+\begin{mathpar}
+\inferrule[Ach]{\Gamma\supseteq\caps(G) \\ G\Downarrow\{T_{\mathsf p}\} \\
+  \forall\mathsf p.\ \Gamma\vdash S_{\mathsf p}\le G\restr{\mathsf p} \\
+  \Gamma;G\achbox\gphi}
+  {\Gamma\vdash\{S_{\mathsf p}\}_{\mathsf p}\ :\ G\ \triangleright\ \Diamond\gphi}
+\end{mathpar}
+Read top-to-bottom: no hallucinated tools; the global type is realizable (no
+deadlocking handoff); every declared skill conforms to its projected contract up
+to subtyping; and the contract can reach the goal. The judgment is decided on $G$,
+and subtyping \emph{transports} the verdict to the actual skills --- legitimate by
+Theorem~\ref{thm:tol}. Declared behaviours are optional: a role without an
+$S_{\mathsf p}$ takes its projection $G\restr{\mathsf p}$ as its definition,
+making the conformance premise vacuous for it. The implementation decides the
+premises in a fixed order chosen so that the cheap, topology-independent
+refutations fire first: capability soundness, then the establisher-closure
+certificate (\S\ref{sec:closure}), then the fragment boundary
+($\mathsf{spawn}\Rightarrow$ \textsc{Unknown}), then projection, conformance,
+and finally reachability. Each refutation names its premise:
+\textsc{Missing\_Capability}, \textsc{Goal\_Unsat},
+\textsc{Blocked\_Guard}, \textsc{Non\_Projectable},
+\textsc{Non\_Conformant}, or the non-verdict \textsc{Unknown}
+(\textsc{Dynamic\_Topology}).
+
+\subsection{Reachability rules}
+The diamond is derived by the following inductive system, realized by the checker
+as a finite forward search.
+\begin{mathpar}
+\inferrule[Reach-Goal]{W\vDash\gphi}{\Gamma;(G,W)\achbox\gphi}
+\and
+\inferrule[Reach-Step]{(G,W)\reach(G',W') \\ \Gamma;(G',W')\achbox\gphi}{\Gamma;(G,W)\achbox\gphi}
+\and
+\inferrule[Reach-Or]{\exists k\in I.\ \Gamma;(G_k,W)\achbox\gphi}
+  {\Gamma;(\mathsf p\triangleright\{\ell_i:G_i\},W)\achbox\gphi}
+\end{mathpar}
+
+\section{Metatheory}
+
+We separate what is \emph{mechanized in Coq} (Theorems~\ref{thm:ref}--\ref{thm:cap}
+and the concrete instance, all axiom-free) from what is \emph{proved on paper}
+(decidability and the undecidability boundary).
+
+\subsection{Soundness of the abstraction}
+Let $\mathcal A$ be the abstract transition system the checker explores and
+$\mathit{abs}:W\to\mathcal A$ the abstraction. We require two simulation conditions:
+\[
+\textbf{(step-sim)}\ \ W\reach W'\Rightarrow \mathit{abs}(W)\,\hat\reach\,\mathit{abs}(W'),
+\qquad
+\textbf{(goal-sim)}\ \ \goal(W)\Rightarrow\hat\goal(\mathit{abs}(W)).
+\]
+\begin{lemma}[Transport]\label{lem:transport}
+If $(G,W_0)\reachs(G',W)$ then $\mathit{abs}(W_0)\,\hat\reach^{*}\,\mathit{abs}(W)$.
+\end{lemma}
+\begin{proof}
+Induction on the closure; \textsc{(step-sim)} discharges the step case. Mechanized
+as \id{reach\_abs}.
+\end{proof}
+
+\subsection{Refutation soundness, tolerance, monotonicity}
+\begin{theorem}[Refutation soundness]\label{thm:ref}
+If the abstract system has no reachable goal state from $\mathit{abs}(W_0)$, then
+no concrete run from $W_0$ reaches $\gphi$. Hence a verdict of \emph{impossible} is
+never wrong.
+\end{theorem}
+\begin{proof}
+Contrapositive of Lemma~\ref{lem:transport} composed with \textsc{(goal-sim)}.
+Mechanized, axiom-free:
+\end{proof}
+\begin{lstlisting}[style=coq]
+Theorem refutation_sound : forall s0,
+  (~ exists a, reach astep (abs s0) a /\ agoal a) ->
+  (~ exists w, reach cstep s0 w /\ cgoal w).
+(* Print Assumptions refutation_sound.  =>  Closed under the global context *)
+\end{lstlisting}
+
+\begin{theorem}[Tolerance soundness]\label{thm:tol}
+Let $\hat\reach_1\subseteq\hat\reach_2$ be two abstract step relations over the
+same states (the coarser $\hat\reach_2$ has \emph{more} edges), with the same
+goal predicate. If $\hat\reach_2$ cannot reach a goal state from
+$\mathit{abs}(W_0)$, neither can $\hat\reach_1$; composed with
+Theorem~\ref{thm:ref}, a refutation computed on any coarser over-approximation
+transfers to the concrete system. Hence coarsening $\alpha$ to tolerate more
+detail never produces a false refutation. (Coq: \id{tolerance\_sound}.)
+\end{theorem}
+\begin{proof}
+Reachability is monotone in the step relation: if $R_1\subseteq R_2$ then
+$\mathrm{reach}(R_1)\subseteq\mathrm{reach}(R_2)$, by induction on the
+reflexive--transitive closure --- the reflexive case is immediate, and a step
+$u\,R_1\,v$ is also a step $u\,R_2\,v$ (mechanized as \id{reach\_mono}).
+Contraposing: no goal state reachable in $R_2$ implies none reachable in $R_1$.
+Taking $R_1$ to be the abstract image of the concrete system guaranteed by
+\textsc{(step-sim)} and $R_2$ the coarser exploration relation, composing with
+Lemma~\ref{lem:transport} and \textsc{(goal-sim)} yields the concrete claim
+exactly as in Theorem~\ref{thm:ref}.
+\end{proof}
+
+\begin{theorem}[Capability monotonicity]\label{thm:cap}
+Let $\Gamma\subseteq\Gamma'$ agree on their common domain. If some run over
+$\Gamma$ reaches $\gphi$, then some run over $\Gamma'$ reaches $\gphi$.
+Granting tools never makes an achievable goal impossible. (Coq:
+\id{cap\_monotone}.)
+\end{theorem}
+\begin{proof}
+Every transition of the $\Gamma$-system is a transition of the
+$\Gamma'$-system: \textsc{R-Msg}, \textsc{R-Sel}, \textsc{R-Rec} do not
+consult $\Gamma$, and a \textsc{World-Act} step through $a\in\dom(\Gamma)$
+uses $\Gamma(a)=\Gamma'(a)$, so the same successor world is produced. Thus
+$\reach_\Gamma\subseteq\reach_{\Gamma'}$, and the claim is
+\id{reach\_mono} applied to the witnessing run. At the judgment level the
+other premises are unaffected: projection and conformance do not mention
+$\Gamma$, and $\Gamma\supseteq\caps(G)$ only becomes easier. Note the
+asymmetry: \emph{removing} a capability can (and should) flip a verdict ---
+that is the refutation direction the mutation tests of \S\ref{sec:realeval}
+exercise.
+\end{proof}
+
+\noindent\textbf{Concrete instance.} The flight skill of \S2, variant A, is
+mechanized as \id{FlightInstance}. We prove \id{flight\_refuted} (no run reaches
+$\mathsf{booked}\wedge\mathsf{confirmation\_sent}$, since no step touches
+$\mathsf{conf}$) and \id{booking\_reachable} (a booking is still reachable). Both
+are axiom-free, witnessing non-vacuity of Theorem~\ref{thm:ref}.
+
+\subsection{Incompleteness, by design}
+\begin{proposition}[Incompleteness]\label{prop:inc}
+$\Gamma;G\achbox\gphi$ may hold while no concrete run reaches $\gphi$: the
+witnessing abstract path can be spurious when $\alpha$ collapses a distinction
+that mattered. The system is \emph{sound for \ding{55} and incomplete for
+\ding{51}}.
+\end{proposition}
+This is the price of decidable, tolerant over-approximation; tightening $\alpha$
+trades tolerance for precision. The residue is confined to two edges, motivating
+the layered architecture:
+\begin{itemize}\setlength{\itemsep}{1pt}
+\item \textbf{Payload faithfulness} (bottom edge): a tool's declared
+post-condition (``filters to fares $<500$'') may be false --- a runtime obligation
+for a deterministic monitor (Layer~C), not a static one.
+\item \textbf{Intent fidelity} (top edge): the formalized goal may not capture what
+the user meant --- irreducibly semantic, surfaced at the single compaction
+checkpoint for human review.
+\end{itemize}
+
+\subsection{Decidability and the autonomy boundary}
+\begin{theorem}[Decidability]\label{thm:dec}
+In the fragment with finitely many roles (static topology), tail-recursive $G$,
+decidable state logic $\mathcal L$, and $\mathcal L$-definable effects,
+$\Gamma;G\achbox\gphi$ is decidable.
+\end{theorem}
+\begin{proof}
+We exhibit the decision procedure the implementation realizes and prove it
+terminating and sound.
+
+\emph{Symbolic configurations.} A symbolic configuration is a triple
+$\sigma=(c,P,\phi)$: a control point $c$ in the protocol (a position in the
+finite step tree; by tail-recursion every $\mu X$ body returns control to a
+fixed loop head, so the set $C$ of control points is finite), a finite set
+$P\subseteq\Pred$ of predicates currently true (frame: all others false), and
+a path constraint $\phi\in\mathcal L$ over SSA-indexed numeric variables.
+$\sigma$ over-approximates the set of worlds
+$\{\langle B,N\rangle : B=P,\ N\vDash\exists\text{-closure of }\phi\}$.
+
+\emph{Search.} Forward search from $(c_0,P_0,\mathit{init})$: actions apply
+the STRIPS effect to $P$ and conjoin assignment/nondeterminism constraints onto
+$\phi$ at fresh SSA indices; guards and goals are satisfiability queries
+$\phi\wedge\psi$ in $\mathcal L$, decidable by assumption; choices branch.
+
+\emph{Widening at back edges.} On traversing a back edge to loop head $X$
+with predicate state $P$, the procedure prunes if the pair $(X,P)$ has been
+recorded at a back edge before; otherwise it records $(X,P)$, \emph{havocs}
+the numeric summary --- replaces $\phi$ by $\top$ and advances every SSA
+index --- and re-enters the loop body.
+
+\emph{Termination.} Between back edges the remaining step structure is a
+finite tree, so only finitely many queries occur. Each back-edge traversal
+either records a new pair $(X,P)$ or prunes; there are at most
+$|C|\cdot 2^{|\Pred|}$ such pairs, so the search terminates.
+
+\emph{Soundness for refutation.} Havoc widening only enlarges the denoted
+world set ($\top$ is entailed by any $\phi$), so the widened system
+over-approximates the concrete one; by Theorem~\ref{thm:tol} a refutation on
+it transfers. Pruning is exact for the widened system: after widening, a
+configuration is fully determined by $(X,P)$ --- the constraint is always
+$\top$ and the continuation at a loop head is fixed by the (unique) binder ---
+so a pruned re-visit explores exactly the state space already explored, and no
+goal-satisfying run is lost.
+
+\emph{Definiteness.} Within the fragment the procedure always exits with a
+witness or an exhausted search, never \textsc{Unknown}; hence achievability is
+decidable. The price of the havoc is possible spurious witnesses \emph{through}
+loops (a numeric refinement re-established each iteration is forgotten), which
+lands on the incomplete side of Proposition~\ref{prop:inc}, never the sound
+side.
+\end{proof}
+\begin{theorem}[Undecidability under autonomy]\label{thm:undec}
+If skills may spawn participants at run time (unbounded $\mathcal R$) with dynamic
+channels, achievability is undecidable.
+\end{theorem}
+\begin{proof}
+By reduction from control-state reachability of communicating finite-state
+machines (CFSMs), undecidable already for two machines connected by unbounded
+FIFO channels~\cite{bz}. Given a CFSM system $(M_1,M_2)$ and a target control
+state $q^\ast$ of $M_1$, construct a skill system as follows. Each machine
+becomes a role whose local control states are encoded in branch structure; each
+FIFO channel is simulated by a stream of spawned single-message courier
+participants: to send letter $m$, a role spawns a fresh courier and hands it
+$m$; couriers deliver in spawn order to the receiving role (dynamic channels
+give each courier its own session with the receiver, and an integer counter
+--- expressible in $\mathcal L$ --- sequences delivery, so FIFO order is
+preserved). Transitions of $M_i$ on sending/receiving $m$ become the
+corresponding spawn/receive steps; the world is used only for one marker
+predicate $\mathsf{hit}$, added by a capability that $M_1$'s encoding invokes
+exactly upon entering $q^\ast$; the goal is $\gphi=\mathsf{hit}$. The
+construction is computable, and runs of the skill system correspond
+bijectively to runs of the CFSM system, with $\mathsf{hit}$ reachable iff
+$q^\ast$ is. A decision procedure for achievability in the unbounded-spawn
+fragment would therefore decide CFSM control-state reachability. Hence none
+exists, and a sound checker must degrade: refute what is refutable without
+bounding the topology (\S\ref{sec:closure}), and answer \textsc{Unknown}
+otherwise.
+\end{proof}
+
+\noindent The two theorems draw the line, and the line is autonomy itself. A
+session type's hard case is \emph{non-local choice}; an autonomous agent's defining
+behaviour is to make such choices and spawn helpers on the fly. The feature that
+makes agents agentic is exactly the feature that crosses from decidable into
+undecidable.
+
+\subsection{The establisher closure: refutation that survives autonomy}
+\label{sec:closure}
+Theorem~\ref{thm:undec} bounds \emph{reachability analysis}, not every
+refutation. Some verdicts quantify over all protocols at once and therefore do
+not care whether the topology is static.
+
+\begin{lemma}[Establisher closure]\label{lem:closure}
+Let $\mathcal E(\Gamma,\mathit{init}) = \mathit{init} \cup
+\bigcup_{a\in\dom(\Gamma)}\Add_a$. For every protocol $G$ over $\Gamma$ ---
+of any shape, including protocols that spawn unboundedly many participants, so
+long as every participant acts through $\Gamma$ --- and every reachable
+configuration $(G',W)$ with $W=\langle B,N\rangle$:
+$\ \{p : B(p)=\mathrm{tt}\}\subseteq\mathcal E(\Gamma,\mathit{init})$.
+\end{lemma}
+\begin{proof}
+Induction on $\reachs$. Initially $B_0=\mathit{init}\subseteq\mathcal E$.
+\textsc{R-Msg}, \textsc{R-Sel}, \textsc{R-Rec} (and participant spawning)
+leave $W$ untouched. For \textsc{R-Act} through $a$,
+$B'=(B\cup\Add_a)\setminus\Del_a\subseteq B\cup\Add_a
+\subseteq\mathcal E\cup\Add_a=\mathcal E$.
+\end{proof}
+
+\begin{corollary}[Protocol-independent refutation]\label{cor:gamma}
+Let $\widehat{\gphi}$ be $\gphi$ with every predicate outside
+$\mathcal E(\Gamma,\mathit{init})$ replaced by $\bot$, every remaining
+predicate by a fresh free boolean, and every arithmetic comparison by a fresh
+free boolean. If $\widehat{\gphi}$ is unsatisfiable, then no run of \emph{any}
+protocol over $\Gamma$ satisfies $\gphi$ --- in particular the verdict is
+sound outside the decidable fragment of Theorem~\ref{thm:dec}.
+\end{corollary}
+\begin{proof}
+Suppose some reachable $W$ satisfied $\gphi$. By Lemma~\ref{lem:closure}
+every predicate outside $\mathcal E$ is false in $W$, matching the $\bot$
+substitution; valuing each remaining free boolean by its truth in $W$ yields a
+model of $\widehat{\gphi}$, contradicting unsatisfiability.
+\end{proof}
+
+The checker decides Corollary~\ref{cor:gamma} with one SMT query before
+anything topology-dependent, so a skill that spawns helpers \emph{and} pursues
+a goal conjunct nothing in $\Gamma$ establishes is still refuted --- with the
+dead conjuncts as the certificate --- rather than surrendered to
+\textsc{Unknown}. This generalizes the \id{FlightInstance} argument of the
+mechanization from one spec to a decision rule. It also sharpens the vocabulary
+of verdicts: \textsc{Goal\_Unsat} via the closure refutes \emph{every} plan
+over these tools, while \textsc{Goal\_Unsat} from the search refutes
+\emph{this} plan; the two carry different repair advice (acquire a tool
+vs.\ fix the plan).
+
+\subsection{The tri-partition}
+\begin{corollary}\label{cor:tri}
+The compiler reduces ``will the goal be achieved'' to three obligations on disjoint
+substrates:
+\end{corollary}
+\begin{center}\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Concern} & \textbf{Where} & \textbf{Mechanism}\\
+\midrule
+goal achievability & static, decidable & Coq-proved may-reachability; ms; no LLM\\
+per-step safety / least privilege & Layer~B (future) & same engine, $\Box$ + permission tiers\\
+payload faithfulness & Layer~C, runtime & deterministic monitors with blame\\
+intent fidelity & top edge, synthesis & one human checkpoint\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Strengthening the Discipline}
+Compiling real, deployed skills (\S\ref{sec:realeval}) exposed three places
+where the discipline as stated either refuted skills that are perfectly
+executable or answered less than it could. Each fix is a small extension with
+its own soundness argument; none touches the trusted core's guarantee.
+
+\subsection{Observed choice: coordination inside a conversation}
+\label{sec:obs}
+Compacting real consumer skills, every initial \textsc{Non\_Projectable}
+refutation traced to the same modelling mismatch: a choice resolved
+\emph{inside a live conversation} (the user picks an option in chat; the
+business answers on a phone call), where the classic unobserved-choice
+condition does not apply because the medium announces the outcome to every
+participant. \textsc{Proj-Obs} (\S4.3) captures this.
+
+\begin{proposition}[Soundness of observed choice]\label{prop:obs}
+Let $D(G)$ desugar every
+$\mathsf p\triangleright^{\mathrm{obs}}\{\ell_i:G_i\}$ into
+$\mathsf p\triangleright\{\ell_i:
+\mathsf p{\to}\mathsf q_1{:}\ell_i.\cdots.\,
+\mathsf p{\to}\mathsf q_k{:}\ell_i.\,G_i\}$, prefixing each branch with an
+explicit broadcast of the selected label to the other roles
+$\mathsf q_1,\dots,\mathsf q_k$. Then (i) $D(G)$ is projectable by
+\textsc{Proj-Brn} exactly where $G$ is projectable by \textsc{Proj-Obs}, with
+identical projections up to the added receive prefixes; and (ii) $D$ preserves
+may-reachability, since \textsc{R-Msg} steps do not change the world.
+Consequently checking $G$ with \textsc{Proj-Obs} equals checking a standard
+global type whose communication the conversation medium performs implicitly.
+\end{proposition}
+\begin{proof}
+(i) Under $D$, every branch of the choice begins, for each non-selector
+$\mathsf q$, with the distinguishing receive $\mathsf p?\ell_i$, which is
+precisely the premise of \textsc{Proj-Brn}; the resulting local type is
+$\&\{\ell_i:T_i\}$ with $T_i$ the projection of the branch body --- the
+\textsc{Proj-Obs} result. For the selector both give
+$\oplus\{\ell_i:\cdot\}$ over the same continuations. (ii) is immediate
+from \textsc{R-Msg}: inserted messages neither guard nor affect $W$, so runs
+and goal-satisfaction correspond one-to-one.
+\end{proof}
+
+The observation behind the fix is worth stating on its own: \emph{unobserved
+choice is a ${\ge}3$-party asynchronous phenomenon}. In a binary synchronous
+session the selection is the communication; only when a third party must act
+on a branch it never hears about does realizability fail. Compaction should
+therefore mark conversation-embedded choices observed, and reserve explicit
+\id{msg} steps for genuinely asynchronous handoffs between separate agents.
+
+\subsection{Adversarial achievability: when the environment picks}
+The diamond of \S4.2 is \emph{angelic}: every choice, including one resolved
+by an external party, is existential. A skill whose goal is reachable only if
+the business says yes is angelically achievable --- true, but weaker than an
+operator often wants to know. We add a \emph{must} mode. Choices may be
+annotated \emph{external}; define $\achbox^{\!\mathrm{adv}}$ by replacing
+\textsc{Reach-Or} on external choices with its universal dual:
+\begin{mathpar}
+\inferrule[Reach-And-Ext]{\forall k\in I.\ \Gamma;(G_k,W)\vDash^{\mathrm{adv}}\Diamond\gphi}
+  {\Gamma;(\mathsf p\triangleright^{\mathrm{ext}}\{\ell_i:G_i\},W)\vDash^{\mathrm{adv}}\Diamond\gphi}
+\end{mathpar}
+so the agent's own choices remain existential while the environment's are
+demonic: AND--OR reachability, i.e.\ the existence of a winning strategy for
+the agent coalition against the declared model.
+
+\begin{proposition}[Compositional refutation soundness]\label{prop:adv}
+An adversarial refutation is sound relative to the declared model: if the
+checker reports $\Gamma;G\nvDash^{\mathrm{adv}}\Diamond\gphi$, then for
+every agent strategy there is a resolution of external choices under which the
+goal is not reached.
+\end{proposition}
+\begin{proof}
+By induction on the search tree. At an external choice the checker refutes by
+exhibiting a branch $\ell_k$ whose subtree it refutes; the environment plays
+$\ell_k$. At the leaves and along internal structure, refutation of a subtree
+is may-refutation, which is sound by Theorem~\ref{thm:ref}: no run of that
+subtree reaches the goal at all, in particular none under the chosen strategy.
+The induction glues the environment's branch selections into a single
+spoiling strategy.
+\end{proof}
+The asymmetry is preserved but flipped in an instructive way: adversarial
+\emph{achievable} inherits the incompleteness of Proposition~\ref{prop:inc}
+per branch, while adversarial \emph{refutation} composes may-refutations and
+stays trustworthy. The same annotation vocabulary is the natural substrate for
+the Layer-B $\Box$ analysis anticipated in \S4.4.
+
+\subsection{Counterexample-guided compaction repair}
+\label{sec:cegar}
+The trust boundary makes compaction errors \emph{inspectable}; it does not by
+itself make them \emph{cheap to fix}. In practice the dominant compaction
+artifact is structural (a conversation modelled as an unannounced handoff),
+and the checker's refutation names it precisely. We therefore close a bounded
+loop at the boundary: when the trusted checker refutes with
+\textsc{Non\_Projectable}, the counterexample is returned to the untrusted
+compactor with a repair instruction restricted to communication structure ---
+it may mark a choice observed or add the informing messages the prose actually
+describes, and may \emph{not} add capabilities, alter effects, or weaken the
+goal. The candidate re-enters through the same schema gate and checker.
+Soundness is untouched --- every verdict is still computed by the trusted core
+on the pack in front of it --- and the restriction matters: repairing
+\textsc{Missing\_Capability} or \textsc{Goal\_Unsat} this way would invite
+the model to invent tools or dilute the goal, exactly what rule~1 of the
+compaction contract forbids. On the real-skill corpus one round of repair
+resolves every structural artifact (\S\ref{sec:realeval}).
+
+\subsection{Admission control at the boundary}
+Orthogonally to the type discipline, the compiler's inputs are \emph{bundles}
+--- prose, scripts, manifests, permission metadata --- and honesty of the
+declared $\Gamma$ begins with the bundle not being hostile. A deterministic
+SkillSpector-style pre-pass~\cite{skillspector} vets manifest consistency,
+invisible/bidirectional Unicode, instruction-injection patterns in
+descriptions and hidden comments, pipe-to-shell and decode-and-execute
+patterns in embedded code, and consistency of prose tool use with declared
+\id{allowed-tools}. It is admission control, not typing: it asks whether the
+bundle should be trusted enough to compile at all.
+
+\section{Implementation}
+\label{sec:impl}
+The compiler is a Python package (\id{skillc}) deciding all four premises of
+\textsc{Ach}: capability soundness, realizability by actual projection with
+merge (\textsc{Proj-Sel}/\textsc{Brn}/\textsc{Mrg}/\textsc{Obs}),
+conformance by coinductive Gay--Hole subtyping
+(\textsc{Sub-Ext}/\textsc{Int}), and may-reachability over Z3 with the
+procedure of Theorem~\ref{thm:dec} --- tail-recursive loops explored with
+predicate-state saturation and havoc widening at back edges, dynamic spawning
+degrading to \textsc{Unknown} after the closure certificate of
+Corollary~\ref{cor:gamma} has been tried. Front-ends produce packs three
+ways: a deterministic markdown compactor (frontmatter and prose tool
+extraction with line-number provenance, judged against pluggable capability
+profiles of the target runtime), an embedded-pack escape hatch, and the
+untrusted LLM compactor with the schema gate and the bounded repair loop of
+\S\ref{sec:cegar}. The Coq development (Theorems~\ref{thm:ref}--\ref{thm:cap}
+plus the concrete instance) checks under Coq 8.18 with no axioms, verified by
+\id{Print Assumptions}; it certifies the trusted core's soundness argument,
+while the compiler itself is the Python implementation. On success the checker
+returns the witness path; on refutation, the failing premise and its frontier
+(missing capabilities, unsatisfiable guard, dead goal conjuncts, the
+non-projectable role, or the non-conforming skill). The package is
+${\sim}2.5$k lines of Python (checker, session engine, gates, front-ends,
+audit, CLI); the CLI (\id{skillc compile\,|\,check\,|\,scan\,|\,audit\,|\,eval})
+maps verdicts to exit codes (0 achievable, 1 impossible, 2 error, 3 unknown)
+so achievability can gate continuous integration for skill repositories, and
+\id{skillc eval} reproduces every number in \S\ref{sec:eval}. All solver
+queries are resolved conservatively: an SMT \emph{unknown} counts as
+satisfiable, so refutations rest only on definite unsats.
+
+\section{Evaluation}
+\label{sec:eval}
+\subsection{Ground-truth corpus}
+We assembled a corpus of 15 skills spanning the canonical failure modes ---
+hallucinated planning, retry-forever loops, coordination deadlock, refinement
+violations --- with achievable controls (including detours and informed branches)
+and two deliberately \emph{spurious} cases exercising the deferred edges. Each
+skill carries a ground-truth semantic label; the positive class is
+\emph{achievable}.
+
+\begin{center}\small
+\begin{tabular}{@{}lcc@{}}
+\toprule
+ & predicted achievable & predicted impossible\\
+\midrule
+truly achievable & $\mathrm{TP}=6$ & $\mathrm{FN}=0$\\
+truly impossible & $\mathrm{FP}=2$ & $\mathrm{TN}=7$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Two claims, both confirmed. \textbf{Soundness}: $\mathrm{FN}=0$ --- no
+achievable goal was wrongly refuted, the empirical face of Theorem~\ref{thm:ref}
+(achievability recall $6/6=100\%$). \textbf{Incompleteness, contained}:
+$\mathrm{FP}=2$, and both are exactly the planted spurious cases --- one a false
+payload post-condition (Layer-C obligation), one an under-specified goal (intent
+edge). The only way to fool the checker is through the two residues it openly
+defers; no structural failure was missed. Each refutation reason fires on its
+matching mode:
+
+\begin{center}\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Failure mode (source)} & \textbf{Verdict reason}\\
+\midrule
+hallucinated planning --- invokes a non-existent tool & \textsc{Missing\_Capability}\\
+hallucinated planning --- no establisher for a goal conjunct & \textsc{Goal\_Unsat}\\
+retry-forever loop --- guard never satisfiable & \textsc{Blocked\_Guard}\\
+coordination deadlock --- unobserved choice / bad handoff & \textsc{Non\_Projectable}\\
+refinement violation --- budget unsatisfiable on every run & \textsc{Goal\_Unsat}\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+A second, six-spec corpus exercises what \S5--\S6 additionally require of
+the compiler: tail-recursive retry with an exit branch (achievable, witness
+through the back edge), a loop that never establishes its goal (terminated by
+predicate-state saturation, refuted \textsc{Goal\_Unsat}), spawning with and
+without a hallucinated tool (\textsc{Unknown} vs.\ \textsc{Missing\_%
+Capability} --- capability soundness survives autonomy; the closure
+refutation under spawning of Corollary~\ref{cor:gamma} is exercised
+separately in the suite), and conformance in both directions (a handler
+offering interface slack in the safe direction passes by
+\textsc{Sub-Ext}/\textsc{Sub-Int}; one dropping a contracted external branch
+is refuted \textsc{Non\_Conformant}). All six verdicts match their ground
+truth.
+
+\subsection{Real, deployed skills}
+\label{sec:realeval}
+The proof-of-concept corpus answers ``does the checker match the theory'';
+the sharper question is whether the \emph{compiler} validates the goal
+achievability of skills people actually run. We evaluate on Anthropic's public
+skills corpus (32 \id{SKILL.md} bundles: consumer workflows such as
+booking-by-phone and grocery ordering, and document-processing skills), in
+three regimes.
+
+\paragraph{Capability level, deterministic.} The deterministic front-end
+compacts each skill against a pluggable \emph{capability profile} of the
+target runtime. Under the consumer-runtime profile, \textbf{32/32} skills are
+achievable --- zero false alarms on deployed skills, the empirical face of
+Theorem~\ref{thm:ref}. Under a coding-CLI profile, \textbf{16/32} are refuted
+\textsc{Missing\_Capability} with the exact absent tool and source line
+(e.g.\ \id{ask\_user\_input\_v0}, a consumer-app widget no CLI grants):
+the same skill, two capability contexts, two verdicts --- achievability is a
+judgment about $\langle$skill, $\Gamma\rangle$, never the skill alone.
+Mutation testing closes the loop in both directions: removing one invoked tool
+from the profile flips every affected skill to \textsc{Missing\_Capability}
+naming exactly that tool, and granting the named frontier back flips it to
+achievable (Theorem~\ref{thm:cap} on real data).
+
+\paragraph{Semantic level, live compaction.} Four representative consumer
+skills were compacted by a live LLM into semantic packs (goals such as
+\emph{booked $\wedge$ calendar-updated $\wedge$ user-informed} with
+per-step guards), through the schema gate and, where needed, one round of the
+\S\ref{sec:cegar} repair loop. All four check \textsc{Achievable} --- no
+false alarm on deployed skills at the semantic level either.
+
+\paragraph{Seeded semantic faults.} Against each achievable semantic pack we
+seed the two canonical wounds with known ground truth: \emph{drop} a
+capability the plan invokes, and \emph{strip} a goal conjunct's establishers
+from every tool that provides it. The compiler refuted \textbf{6/6} mutants,
+naming the dropped tool (\textsc{Missing\_Capability}, frontier) or the dead
+conjunct (\textsc{Goal\_Unsat} via Corollary~\ref{cor:gamma}) in every
+case. The admission pre-pass, run over the same 32 real bundles, reports zero
+error-severity findings, while a planted poisoned bundle (invisible Unicode,
+description injection, hidden HTML-comment instruction, pipe-to-shell
+install) trips every detector class.
+
+\section{Related Work}
+\noindent\textbf{Prior-art note.} The claims below reflect the authors' survey at
+submission time; the fusion's novelty should be confirmed against a systematic
+search of the planning-meets-behavioural-types literature, which is dispersed
+across communities.
+
+\emph{Multiparty session types}~\cite{honda,liprojection} supply projection,
+deadlock-freedom, and subtyping~\cite{gayhole}. We reuse this for the realizability
+premise but add a world and a goal, which classical session types do not model.
+\emph{Automated planning}~\cite{strips} supplies capability-guarded goal
+reachability; we reuse its frame semantics but embed it in a multiparty
+choreography. The contribution is the \emph{fusion}, decided over an
+LLM-synthesized, goal-marked global type. Recent agent-verification work is
+adjacent but differently aimed: \emph{provable coordination via message sequence
+charts}~\cite{msc} projects a global choreography for LLM agents but targets
+coordination correctness, not goal achievability; \emph{VeriGuard}~\cite{veriguard}
+separates offline policy verification from online monitoring as a safety shield;
+\emph{agent behavioural contracts}~\cite{abc} bring design-by-contract to single
+agents.
+
+Skill-bundle scanners and verified-skill catalogs are complementary.
+SkillSpector~\cite{skillspector} and the NVIDIA verified-agent-skills
+pipeline~\cite{nvskills} address the same deployment object --- portable agent
+skills --- but ask a different question: a pre-publication security control
+normalizes a bundle and runs deterministic scanners (static pattern detectors,
+AST and taint analyzers, manifest-consistency and metadata-poisoning checks,
+supply-chain checks). Valuable admission control, but not a compiler or type
+discipline: it defines no operational semantics of goal-marked skills,
+projects nothing, decides no reachability, proves no refutation soundness. In
+our architecture such a pass sits at the compiler's boundary (\S7.4): before
+compaction it vets the incoming bundle; after compaction it supports the
+honesty of declared capabilities. The type checker then consumes the sanitized
+pack and proves the narrower claim that the declared goal is not structurally
+impossible. None of the above frames the static check as goal achievability
+over a synthesized protocol, nor gives the refutation-sound /
+achievement-incomplete asymmetry with a mechanized proof. Finally, the trust boundary connects to learning with verifiable
+rewards: the checker's sound \emph{impossible} verdicts are cheap, on-distribution
+negative labels --- a reward signal needing no LLM judge --- a loop we leave to
+future work.
+
+\section{Limitations and Future Work}
+\begin{itemize}\setlength{\itemsep}{1pt}
+\item \textbf{Relative soundness.} Everything is proved about the declared $\Gamma$
+and $S$. If the prose lies (a ``read-only'' tool that writes), the checker verifies
+a fiction; honest-declaration is a separate obligation, of which this makes only
+the interaction slice decidable.
+\item \textbf{Static topology for totality.} Dynamic spawning drops the procedure
+to a semi-decision (Theorem~\ref{thm:undec}); a practical system answers
+\textsc{Unknown} rather than guessing.
+\item \textbf{Trusted abstraction.} A coarse $\alpha$ silently widens tolerance
+(more false achievable), never breaking Theorem~\ref{thm:ref} but weakening
+usefulness.
+\item \textbf{Engineering gaps.} The mechanization covers soundness of
+abstract reachability (Theorems~\ref{thm:ref}--\ref{thm:cap}); the newer
+results --- Lemma~\ref{lem:closure}, Theorem~\ref{thm:dec}'s procedure,
+Propositions~\ref{prop:obs} and~\ref{prop:adv} --- are proved on paper here
+and their mechanization is routine future work. The merge $\sqcap$ implements
+label-union on external branches with structural recursion elsewhere --- a
+sound core of, not the complete, merge lattice; havoc widening forgets
+\emph{all} numeric state at back edges (always in the tolerant direction).
+The real-skill corpus is one vendor's public catalog (32 bundles) and the
+semantic-level evaluation covers four of them with one compaction model;
+scaling both is next.
+\item \textbf{Compaction quality is a first-class variable.} The real-skill
+study shows the checker's verdict is only as meaningful as the pack: the two
+systematic artifacts we found (under-granted runtime abilities, unannotated
+conversational choices) both produce false refutations --- safe-side errors,
+surfaced with counterexamples, and fixable by prompt contract and bounded
+repair --- but a compaction study across models and prompt contracts is
+needed before quantitative claims about the pass direction generalize.
+\end{itemize}
+
+\section{Conclusion}
+An LLM can draft an agent's plan from intent; the open question has been whether
+anything can tell, cheaply and before execution, that the plan is doomed. For the
+\emph{achievability} question the answer is yes, with a guarantee: fuse planning's
+capability-guarded reachability with session types' projectability over a
+goal-marked global type, treat the LLM's compaction as untrusted, and prove the
+checker sound for refutation. The verdict \emph{impossible} is then never wrong;
+\emph{achievable} is honest about the two edges it defers. The same machinery, with
+the diamond flipped to a box, extends upward to per-step safety --- a layered route
+from ``can this agent even do that?'' to ``will it do it safely?''
+
+\begin{thebibliography}{9}\small
+\bibitem{honda} K.~Honda, N.~Yoshida, M.~Carbone. Multiparty Asynchronous Session Types. \emph{J. ACM} 63(1), 2016.
+\bibitem{liprojection} E.~Li, F.~Stutz, T.~Wies, D.~Zufferey. Complete Multiparty Session Type Projection with Automata. \emph{CAV} 2023.
+\bibitem{gayhole} S.~Gay, M.~Hole. Subtyping for Session Types in the Pi Calculus. \emph{Acta Informatica} 42(2--3), 2005.
+\bibitem{strips} R.~Fikes, N.~Nilsson. STRIPS: A New Approach to the Application of Theorem Proving to Problem Solving. \emph{Artif. Intell.} 2(3--4), 1971.
+\bibitem{bz} D.~Brand, P.~Zafiropulo. On Communicating Finite-State Machines. \emph{J. ACM} 30(2), 1983.
+\bibitem{rice} H.~G.~Rice. Classes of Recursively Enumerable Sets and Their Decision Problems. \emph{Trans. AMS} 74, 1953.
+\bibitem{msc} Provable Coordination for LLM Agents via Message Sequence Charts. arXiv:2604.17612, 2026. [verify]
+\bibitem{veriguard} VeriGuard: Enhancing LLM Agent Safety via Verified Code Generation. arXiv:2510.05156, 2025. [verify]
+\bibitem{abc} Agent Behavioral Contracts: Formal Specification and Runtime Enforcement. arXiv:2602.22302, 2026. [verify]
+\bibitem{skillspector} N.~Paz et al. SkillSpector: A Pre-Publication Security Control for Agent Skills. OpenReview, 2026. [verify]
+\bibitem{nvskills} NVIDIA. NVIDIA-Verified Agent Skills Provide Capability Governance for AI Agents. NVIDIA Technical Blog, 2026. [verify]
+\end{thebibliography}
+
+\end{document}

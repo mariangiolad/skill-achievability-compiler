@@ -1,0 +1,20 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      - run: python -m pytest -v
+      - name: fetch real public skills and test against them
+        run: |
+          python scripts/fetch_skills.py real-skills || echo "::warning::skill fetch failed; real-skill tests will be skipped"
+          SKILLC_SKILLS_DIR=$PWD/real-skills python -m pytest -v tests/test_real_skills.py

@@ -1,0 +1,354 @@
+[
+  {
+    "id": "retry_loop_ok",
+    "category": "TOLERANCE",
+    "ground_truth": "ACHIEVABLE",
+    "nl": "# Skill: Retry search until found, then deliver\nGoal: answer delivered. Search in a loop; when found, exit and deliver.",
+    "pack": {
+      "name": "retry_loop_ok",
+      "roles": [
+        "worker"
+      ],
+      "capabilities": {
+        "search": {
+          "owner": "worker",
+          "add": [
+            "found"
+          ]
+        },
+        "deliver": {
+          "owner": "worker",
+          "pre": "found",
+          "add": [
+            "answered"
+          ]
+        }
+      },
+      "protocol": [
+        {
+          "rec": {
+            "name": "X",
+            "body": [
+              {
+                "act": {
+                  "cap": "search",
+                  "by": "worker"
+                }
+              },
+              {
+                "choice": {
+                  "by": "worker",
+                  "branches": {
+                    "retry": [
+                      {
+                        "continue": "X"
+                      }
+                    ],
+                    "found": []
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "act": {
+            "cap": "deliver",
+            "by": "worker"
+          }
+        }
+      ],
+      "goal": "answered"
+    },
+    "note": "tail-recursive retry with an exit branch is inside the fragment"
+  },
+  {
+    "id": "spin_forever",
+    "category": "INFINITE_LOOP",
+    "ground_truth": "IMPOSSIBLE",
+    "nl": "# Skill: Publish a report (but the plan only ever re-drafts)\nGoal: published. The loop re-drafts forever; nothing establishes published.",
+    "pack": {
+      "name": "spin_forever",
+      "roles": [
+        "agent"
+      ],
+      "capabilities": {
+        "draft": {
+          "owner": "agent",
+          "add": [
+            "drafted"
+          ]
+        }
+      },
+      "protocol": [
+        {
+          "rec": {
+            "name": "X",
+            "body": [
+              {
+                "act": {
+                  "cap": "draft",
+                  "by": "agent"
+                }
+              },
+              {
+                "continue": "X"
+              }
+            ]
+          }
+        }
+      ],
+      "goal": "published"
+    },
+    "note": "predicate-state saturation terminates the loop search -> GOAL_UNSAT"
+  },
+  {
+    "id": "spawn_helpers",
+    "category": "AUTONOMY",
+    "ground_truth": "UNKNOWN",
+    "nl": "# Skill: Fan out research to freshly spawned subagents\nGoal: report delivered. The planner spawns helper agents at run time.",
+    "pack": {
+      "name": "spawn_helpers",
+      "roles": [
+        "planner"
+      ],
+      "capabilities": {
+        "deliver": {
+          "owner": "planner",
+          "add": [
+            "delivered"
+          ]
+        }
+      },
+      "protocol": [
+        {
+          "spawn": {
+            "role": "helper"
+          }
+        },
+        {
+          "act": {
+            "cap": "deliver",
+            "by": "planner"
+          }
+        }
+      ],
+      "goal": "delivered"
+    },
+    "note": "dynamic topology -> outside the decidable fragment (Theorem 5)"
+  },
+  {
+    "id": "spawn_with_ghost_tool",
+    "category": "AUTONOMY",
+    "ground_truth": "IMPOSSIBLE",
+    "nl": "# Skill: Fan out, then update the ledger\nGoal: ledger updated. Spawns helpers AND invokes a tool nobody has.",
+    "pack": {
+      "name": "spawn_with_ghost_tool",
+      "roles": [
+        "planner"
+      ],
+      "capabilities": {},
+      "protocol": [
+        {
+          "spawn": {
+            "role": "helper"
+          }
+        },
+        {
+          "act": {
+            "cap": "update_ledger",
+            "by": "planner"
+          }
+        }
+      ],
+      "goal": "ledger_updated"
+    },
+    "note": "capability soundness survives autonomy: refute before degrading"
+  },
+  {
+    "id": "nonconformant_handler",
+    "category": "CONFORMANCE",
+    "ground_truth": "IMPOSSIBLE",
+    "nl": "# Skill: Triage then handle -- but the declared handler only handles one path\nGoal: resolved. Contract informs the handler of go_simple/go_complex; the\ndeclared handler behaviour only receives go_simple.",
+    "pack": {
+      "name": "nonconformant_handler",
+      "roles": [
+        "router",
+        "handler"
+      ],
+      "capabilities": {
+        "resolve_simple": {
+          "owner": "handler",
+          "add": [
+            "resolved"
+          ]
+        },
+        "resolve_complex": {
+          "owner": "handler",
+          "add": [
+            "resolved"
+          ]
+        }
+      },
+      "protocol": [
+        {
+          "choice": {
+            "by": "router",
+            "branches": {
+              "simple": [
+                {
+                  "msg": {
+                    "from": "router",
+                    "to": "handler",
+                    "label": "go_simple"
+                  }
+                },
+                {
+                  "act": {
+                    "cap": "resolve_simple",
+                    "by": "handler"
+                  }
+                }
+              ],
+              "complex": [
+                {
+                  "msg": {
+                    "from": "router",
+                    "to": "handler",
+                    "label": "go_complex"
+                  }
+                },
+                {
+                  "act": {
+                    "cap": "resolve_complex",
+                    "by": "handler"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "goal": "resolved",
+      "skills": {
+        "handler": [
+          {
+            "branch": {
+              "from": "router",
+              "branches": {
+                "go_simple": [
+                  {
+                    "act": {
+                      "cap": "resolve_simple"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "note": "S_handler drops an external choice -> S </= G|handler (Sub-Ext)"
+  },
+  {
+    "id": "conformant_tolerant_handler",
+    "category": "CONFORMANCE",
+    "ground_truth": "ACHIEVABLE",
+    "nl": "# Skill: Triage then handle -- handler declared with an EXTRA receive\nGoal: resolved. The declared handler also accepts a go_escalate label the\ncontract never sends; extra external choices are safe (Sub-Ext).",
+    "pack": {
+      "name": "conformant_tolerant_handler",
+      "roles": [
+        "router",
+        "handler"
+      ],
+      "capabilities": {
+        "resolve_simple": {
+          "owner": "handler",
+          "add": [
+            "resolved"
+          ]
+        },
+        "resolve_complex": {
+          "owner": "handler",
+          "add": [
+            "resolved"
+          ]
+        }
+      },
+      "protocol": [
+        {
+          "choice": {
+            "by": "router",
+            "branches": {
+              "simple": [
+                {
+                  "msg": {
+                    "from": "router",
+                    "to": "handler",
+                    "label": "go_simple"
+                  }
+                },
+                {
+                  "act": {
+                    "cap": "resolve_simple",
+                    "by": "handler"
+                  }
+                }
+              ],
+              "complex": [
+                {
+                  "msg": {
+                    "from": "router",
+                    "to": "handler",
+                    "label": "go_complex"
+                  }
+                },
+                {
+                  "act": {
+                    "cap": "resolve_complex",
+                    "by": "handler"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "goal": "resolved",
+      "skills": {
+        "handler": [
+          {
+            "branch": {
+              "from": "router",
+              "branches": {
+                "go_simple": [
+                  {
+                    "act": {
+                      "cap": "resolve_simple"
+                    }
+                  }
+                ],
+                "go_complex": [
+                  {
+                    "act": {
+                      "cap": "resolve_complex"
+                    }
+                  }
+                ],
+                "go_escalate": [
+                  {
+                    "act": {
+                      "cap": "resolve_complex"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "note": "interface slack in the safe direction must not refute (T2 flavour)"
+  }
+]

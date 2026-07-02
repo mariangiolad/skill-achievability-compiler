@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+real-skills/
+proof/*.vo
+proof/*.vok
+proof/*.vos
+proof/*.glob
+proof/.*.aux
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/build*.log
