@@ -49,6 +49,22 @@ def test_backtick_mention_without_verb_is_not_an_invocation():
     assert check(res.pack).achievable          # trivially: no demands
 
 
+def test_negated_invocation_is_not_extracted():
+    """'Do NOT use `X`' and '**not** use `X`' must not be treated as invocations."""
+    md = ("# s\n"
+          "Do NOT use `some_tool_v1` for new code.\n"
+          "Do **not** use `other_tool_v2` here.\n"
+          "Never call `yet_another_tool`.\n"
+          "Instead use `ask_user_input_v0` for this.")
+    res = compile_markdown(md, CLAUDE_AI)
+    extracted = [i.raw for i in res.invocations]
+    assert "some_tool_v1" not in extracted
+    assert "other_tool_v2" not in extracted
+    assert "yet_another_tool" not in extracted
+    assert "ask_user_input_v0" in extracted
+    assert check(res.pack).achievable
+
+
 def test_shell_commands_route_through_bash():
     md = "Convert using `pdftotext`, then run `thumbnail.py` on the output."
     res = compile_markdown(md, CLAUDE_AI)

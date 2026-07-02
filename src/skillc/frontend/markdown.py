@@ -54,6 +54,9 @@ TOOLS_LINE_RE = re.compile(
 
 AGENT_TOOL_RE = re.compile(r"\A(?:[a-z][a-z0-9]*(?:_[a-z0-9]+)+|[A-Z][A-Za-z0-9]*)\Z")
 SHELL_TOKEN_RE = re.compile(r"\A[a-z][a-z0-9+.-]*\Z")
+# Matches a negation word ("not", "never") in the ~20 chars immediately
+# before an invocation verb, used to skip "do NOT use `X`" false positives.
+_NEGATION_BEFORE_VERB_RE = re.compile(r'\b(?:not|never)\b', re.I)
 
 SHELL_CAP = "bash"
 PACK_FENCE_TAG = "skillc-pack"
@@ -139,6 +142,10 @@ def extract(body: str, declared: set[str]) -> list[Invocation]:
     """Extract ordered tool invocations from prose (code fences pre-stripped)."""
     out: list[Invocation] = []
     for m in INVOKE_RE.finditer(body):
+        # Skip negated invocations: "do NOT use `X`", "never call `X`", etc.
+        prefix = body[max(0, m.start() - 20):m.start()]
+        if _NEGATION_BEFORE_VERB_RE.search(prefix):
+            continue
         raw = m.group(1)
         norm = normalize_tool(raw)
         line = body.count("\n", 0, m.start(1)) + 1
