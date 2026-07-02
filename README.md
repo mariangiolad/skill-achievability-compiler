@@ -266,3 +266,46 @@ of, not the complete, MPST merge lattice; loop widening havocs *all* numeric
 state at the back edge (coarser than needed, always in the sound direction).
 Dynamic subagent spawning is outside the decidable fragment and yields
 `UNKNOWN`, never a guess.
+
+## How to cite
+
+The skill-achievability-compiler is an open-source project. If you use it in academic work, research papers, or other publications, please cite it using one of the formats below:
+
+**BibTeX:**
+```bibtex
+@software{skillc2026,
+  title = {skill-achievability-compiler: A Static Compiler for Goal Achievability Verification in LLM-Synthesized Agent Skills},
+  author = {Tcchen, Gina},
+  year = {2026},
+  url = {https://github.com/ginaecho/skill-achievability-compiler},
+  license = {MIT}
+}
+```
+
+**APA:**
+```
+Tcchen, G. (2026). skill-achievability-compiler: A static compiler for goal achievability verification in LLM-synthesized agent skills. Retrieved from https://github.com/ginaecho/skill-achievability-compiler
+```
+
+**Chicago:**
+```
+Tcchen, Gina. "skill-achievability-compiler: A Static Compiler for Goal Achievability Verification in LLM-Synthesized Agent Skills." GitHub. Accessed [date]. https://github.com/ginaecho/skill-achievability-compiler.
+```
+
+GitHub will also recognize the [`CITATION.cff`](CITATION.cff) file in this repository, which provides machine-readable citation metadata.
+
+## License
+
+This project is licensed under the **MIT License** — see the [`LICENSE`](LICENSE) file for details.
+
+Copyright © 2026 Gina Tcchen and contributors.
+
+The MIT License permits free use, modification, distribution, and sublicensing of the software, provided that the copyright notice and license text are retained. This means:
+
+✓ You **can** use this software for any purpose (commercial, private, etc.)  
+✓ You **can** modify and distribute the software  
+✓ You **can** include it in proprietary applications  
+✓ You **must** include the license and copyright notice  
+✓ The software is provided **as-is**, with no warranty
+
+For full legal terms, see the [LICENSE](LICENSE) file.

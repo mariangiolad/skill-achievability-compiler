@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+title: "skill-achievability-compiler: A Static Compiler for Goal Achievability Verification in LLM-Synthesized Agent Skills"
+message: "If you use this software in academic work, please cite it using the metadata from this file."
+type: software
+authors:
+  - family-names: "Tcchen"
+    given-names: "Gina"
+    email: "gina.tcchen@gmail.com"
+date-released: 2026-07-02
+license: MIT
+repository-code: "https://github.com/ginaecho/skill-achievability-compiler"
+repository-artifact: "https://github.com/ginaecho/skill-achievability-compiler"
+keywords:
+  - agent skills
+  - capability verification
+  - goal achievability
+  - formal methods
+  - multiparty session types
+  - STRIPS planning
+  - LLM agent synthesis
+  - type discipline
+abstract: "skillc is a static type-discipline compiler that verifies whether an agent skill's goal is achievable given a capability context and declared protocol. It fuses STRIPS capability-guarded reachability with multiparty session types over goal-marked global protocols, and is sound for refutation: an IMPOSSIBLE verdict is a proof that no run of the skill can reach its goal. The soundness core is mechanized in Coq with zero axioms."
+documentation: "https://github.com/ginaecho/skill-achievability-compiler/blob/gc/implement-and-testing/README.md"
+version: "1.0.0"
