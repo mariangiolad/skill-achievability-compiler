@@ -106,9 +106,13 @@ def eval_formula(f: Any, st: State) -> z3.BoolRef:
 
 
 def _sat(constraints: list) -> bool:
+    """Satisfiability, resolved conservatively toward achievability: a solver
+    UNKNOWN (possible once packs use products of variables, outside the
+    linear fragment) counts as satisfiable, so a refutation is only ever
+    issued on a definite unsat -- the sound side of the T1 asymmetry."""
     s = z3.Solver()
     s.add(*constraints)
-    return s.check() == z3.sat
+    return s.check() != z3.unsat
 
 
 def guard_satisfiable(st: State, cap: Capability) -> bool:

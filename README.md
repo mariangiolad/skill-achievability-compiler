@@ -57,7 +57,8 @@ $ skillc eval                                      # corpus + soundness audit
 $ skillc profiles                                  # claude-ai, claude-code, none
 ```
 
-Exit codes: `0` achievable, `1` impossible, `2` error — so `skillc check` can
+Exit codes: `0` achievable, `1` impossible, `2` error, `3` unknown (outside
+the decidable fragment) — so `skillc check` can
 gate CI for skill repositories.
 
 ## What the checker decides
@@ -99,7 +100,7 @@ participant spawning (`spawn`) crosses the autonomy boundary
 refutes what survives autonomy and otherwise answers **`UNKNOWN`** (exit
 code 3) instead of guessing.
 
-**Beyond the original paper** (proved in [`paper/`](paper/), §6.6–§7):
+**Beyond the original paper** (proved in [`paper/`](paper/), §6.5–§7):
 
 - **Establisher-closure refutation** — a goal conjunct no capability
   establishes refutes *every* protocol over Γ in one SMT query, spawning

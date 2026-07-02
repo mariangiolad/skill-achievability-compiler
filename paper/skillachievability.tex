@@ -256,7 +256,11 @@ e &::=& x \mid n \mid e+e \mid e-e \mid c\cdot e & (c,n\in\mathbb Z)\\[1pt]
 \]
 The state logic $\mathcal L$ is quantifier-free linear integer arithmetic with
 uninterpreted boolean predicates --- a decidable fragment for which entailment
-$\vDash$ and satisfiability are discharged by an SMT solver.
+$\vDash$ and satisfiability are discharged by an SMT solver. The
+implementation's expression grammar accepts general products $e\cdot e$;
+decidability (Theorem~\ref{thm:dec}) is claimed for linear use only, and the
+checker resolves any solver \emph{unknown} conservatively as satisfiable, so
+outside the linear fragment it can lose refutations but never soundness.
 
 \subsection{Worlds and capabilities}
 A \emph{world} $W=\langle B,N\rangle$ valuates predicates $B:\Pred\to\mathbb B$ and
@@ -287,6 +291,7 @@ G &::=& \mathsf{p}{\to}\mathsf{q}:\ell\langle\hat\alpha\rangle.\,G
   &\mid& \mathsf{p}\triangleright\{\ell_i:G_i\}_{i\in I} & \text{choice ($\mathsf p$ selects a branch)}\\
   &\mid& a@\mathsf{p}.\,G & \text{action (role $\mathsf p$ invokes capability $a$)}\\
   &\mid& \checkmark\varphi.\,G & \text{goal marker (the protocol claims $\varphi$ holds)}\\
+  &\mid& \mathsf{spawn}\ \mathsf{q}.\,G & \text{dynamic participant (outside the decidable fragment)}\\
   &\mid& \mu X.\,G \mid X \mid \mathbf{end} & \\[3pt]
 T &::=& \mathsf{q}!\ell\langle\hat\alpha\rangle.T \mid
   \mathsf{q}?\ell\langle\hat\alpha\rangle.T \mid
@@ -299,7 +304,13 @@ S_{\mathsf p} &::=& \text{(same grammar as $T$)} & \text{the declared behaviour 
 The abstraction $\alpha$ maps concrete messages to goal-relevant tokens
 $\hat\alpha$; it is the tolerance dial of \S4.4. Only $a@\mathsf p$ steps change
 the world; messages carry coordination information and are abstracted for
-achievability.
+achievability. Well-formedness (enforced by the implementation's schema gate)
+requires recursion variables $X$ to occur only in \emph{tail} position under
+uniquely-named binders --- the fragment of Theorem~\ref{thm:dec} --- and
+$\mathsf{spawn}$ marks the protocol as outside that fragment
+(Theorem~\ref{thm:undec}); choices may carry the annotations
+$\triangleright^{\mathrm{obs}}$ (\S4.3) and $\triangleright^{\mathrm{ext}}$
+(\S7.2).
 
 \section{Operational Semantics}
 
@@ -335,9 +346,13 @@ is its reflexive-transitive closure.
 \inferrule[R-Sel]{k\in I}{(\mathsf p\triangleright\{\ell_i:G_i\}_{i\in I},\,W)\reach(G_k,\,W)}
 \and
 \inferrule[R-Rec]{ }{(\mu X.G,\,W)\reach(G[\mu X.G/X],\,W)}
+\and
+\inferrule[R-Chk]{ }{(\checkmark\varphi.G,\,W)\reach(G,\,W)}
 \end{mathpar}
-A configuration is \emph{goal-satisfying} when control is at a goal marker or
-terminus and the world entails the goal:
+\textsc{R-Chk} makes goal markers \emph{observation points}, not blocking
+assertions: a run may pass an unsatisfied marker and satisfy the goal later
+(and the checker does exactly this). A configuration is \emph{goal-satisfying}
+when control is at a goal marker or terminus and the world entails the goal:
 \[
 \goal(\checkmark\varphi.G,W)\iff W\vDash\varphi,\qquad
 \goal(\mathbf{end},W)\iff W\vDash\gphi.
@@ -347,7 +362,11 @@ terminus and the world entails the goal:
 \exists W_0\vDash\mathit{init}.\ \exists(G',W').\ (G,W_0)\reachs(G',W')\ \wedge\ \goal(G',W').
 \]
 The diamond is \emph{existential}: a single witnessing run suffices. This is the
-formal source of detour-tolerance.
+formal source of detour-tolerance. The initial condition $\mathit{init}$ has
+two parts, mirroring the world: a set of predicates true at the start (the
+frame closes it --- everything unlisted is false, so $B_0$ is \emph{fixed})
+and a set of $\mathcal L$-constraints on the numeric part, over which the
+existential genuinely ranges.
 
 \subsection{Projection and realizability}
 Projection $G\restr{\mathsf p}$ extracts role $\mathsf p$'s local type, using the
@@ -358,15 +377,20 @@ tell which branch was taken (the \emph{unobserved-choice} condition).
 \inferrule[Proj-Sel]{G_i\restr{\mathsf p}=T_i\ (i\in I)}
   {(\mathsf p\triangleright\{\ell_i:G_i\})\restr{\mathsf p}=\oplus\{\ell_i:T_i\}}
 \and
-\inferrule[Proj-Brn]{G_i\restr{\mathsf q}=T_i\ (i\in I) \\ \mathsf p \text{ sends a distinguishing }\ell_i\text{ to }\mathsf q}
-  {(\mathsf p\triangleright\{\ell_i:G_i\})\restr{\mathsf q}=\&\{\ell_i:T_i\}}
+\inferrule[Proj-Brn]{G_i\restr{\mathsf q}=\mathsf r?\ell'_i.\,T_i\ (i\in I) \\ \text{the }\ell'_i\text{ pairwise distinct, common sender }\mathsf r}
+  {(\mathsf p\triangleright\{\ell_i:G_i\})\restr{\mathsf q}=\&\{\ell'_i:T_i\}}
 \and
 \inferrule[Proj-Mrg]{G_i\restr{\mathsf q}=T_i\ (i\in I) \\ T=\sqcap_{i}\,T_i \text{ defined}}
   {(\mathsf p\triangleright\{\ell_i:G_i\})\restr{\mathsf q}=T}
 \end{mathpar}
 $G$ is \emph{realizable}, $G\Downarrow\{T_{\mathsf p}\}$, when $G\restr{\mathsf p}$
 is defined for every role. Non-realizability is the static signature of a
-deadlocking handoff.
+deadlocking handoff. \textsc{Proj-Brn} as implemented is slightly more
+liberal than the textbook rule: the distinguishing receive need not come from
+the selector $\mathsf p$ --- any \emph{common} informant $\mathsf r$ whose
+labels separate the branches suffices (the knowledge of the choice may be
+relayed); it must, however, be the \emph{first} thing $\mathsf q$ does in
+each branch.
 
 \paragraph{Observed choice.} Real skills are frequently \emph{one
 conversation}: an assistant and its user in a chat, or an agent and a business
@@ -429,7 +453,18 @@ Read top-to-bottom: no hallucinated tools; the global type is realizable (no
 deadlocking handoff); every declared skill conforms to its projected contract up
 to subtyping; and the contract can reach the goal. The judgment is decided on $G$,
 and subtyping \emph{transports} the verdict to the actual skills --- legitimate by
-Theorem~\ref{thm:tol}.
+Theorem~\ref{thm:tol}. Declared behaviours are optional: a role without an
+$S_{\mathsf p}$ takes its projection $G\restr{\mathsf p}$ as its definition,
+making the conformance premise vacuous for it. The implementation decides the
+premises in a fixed order chosen so that the cheap, topology-independent
+refutations fire first: capability soundness, then the establisher-closure
+certificate (\S\ref{sec:closure}), then the fragment boundary
+($\mathsf{spawn}\Rightarrow$ \textsc{Unknown}), then projection, conformance,
+and finally reachability. Each refutation names its premise:
+\textsc{Missing\_Capability}, \textsc{Goal\_Unsat},
+\textsc{Blocked\_Guard}, \textsc{Non\_Projectable},
+\textsc{Non\_Conformant}, or the non-verdict \textsc{Unknown}
+(\textsc{Dynamic\_Topology}).
 
 \subsection{Reachability rules}
 The diamond is derived by the following inductive system, realized by the checker
@@ -572,10 +607,11 @@ the STRIPS effect to $P$ and conjoin assignment/nondeterminism constraints onto
 $\phi$ at fresh SSA indices; guards and goals are satisfiability queries
 $\phi\wedge\psi$ in $\mathcal L$, decidable by assumption; choices branch.
 
-\emph{Widening at back edges.} On traversing a back edge to loop head $X$, the
-procedure (i) \emph{havocs} the numeric summary --- replaces $\phi$ by $\top$
-and advances every SSA index --- and (ii) prunes if the pair $(X,P)$ has been
-seen at a back edge before, else records it.
+\emph{Widening at back edges.} On traversing a back edge to loop head $X$
+with predicate state $P$, the procedure prunes if the pair $(X,P)$ has been
+recorded at a back edge before; otherwise it records $(X,P)$, \emph{havocs}
+the numeric summary --- replaces $\phi$ by $\top$ and advances every SSA
+index --- and re-enters the loop body.
 
 \emph{Termination.} Between back edges the remaining step structure is a
 finite tree, so only finitely many queries occur. Each back-edge traversal
@@ -832,7 +868,14 @@ plus the concrete instance) checks under Coq 8.18 with no axioms, verified by
 while the compiler itself is the Python implementation. On success the checker
 returns the witness path; on refutation, the failing premise and its frontier
 (missing capabilities, unsatisfiable guard, dead goal conjuncts, the
-non-projectable role, or the non-conforming skill).
+non-projectable role, or the non-conforming skill). The package is
+${\sim}2.5$k lines of Python (checker, session engine, gates, front-ends,
+audit, CLI); the CLI (\id{skillc compile\,|\,check\,|\,scan\,|\,audit\,|\,eval})
+maps verdicts to exit codes (0 achievable, 1 impossible, 2 error, 3 unknown)
+so achievability can gate continuous integration for skill repositories, and
+\id{skillc eval} reproduces every number in \S\ref{sec:eval}. All solver
+queries are resolved conservatively: an SMT \emph{unknown} counts as
+satisfiable, so refutations rest only on definite unsats.
 
 \section{Evaluation}
 \label{sec:eval}
@@ -878,13 +921,18 @@ refinement violation --- budget unsatisfiable on every run & \textsc{Goal\_Unsat
 \end{tabular}
 \end{center}
 
-A second, six-spec corpus exercises what the extensions add: tail-recursive
-retry with an exit (achievable, witness through the back edge), a loop that
-never establishes its goal (refuted by saturation), spawning with and without
-a dead goal conjunct (\textsc{Unknown} vs.\ the closure refutation of
-Corollary~\ref{cor:gamma}), and conformance in both directions (a handler
-declaring an \emph{extra} external branch passes by \textsc{Sub-Ext}; one
-dropping a contracted branch is refuted \textsc{Non\_Conformant}).
+A second, six-spec corpus exercises what \S5--\S6 additionally require of
+the compiler: tail-recursive retry with an exit branch (achievable, witness
+through the back edge), a loop that never establishes its goal (terminated by
+predicate-state saturation, refuted \textsc{Goal\_Unsat}), spawning with and
+without a hallucinated tool (\textsc{Unknown} vs.\ \textsc{Missing\_%
+Capability} --- capability soundness survives autonomy; the closure
+refutation under spawning of Corollary~\ref{cor:gamma} is exercised
+separately in the suite), and conformance in both directions (a handler
+offering interface slack in the safe direction passes by
+\textsc{Sub-Ext}/\textsc{Sub-Int}; one dropping a contracted external branch
+is refuted \textsc{Non\_Conformant}). All six verdicts match their ground
+truth.
 
 \subsection{Real, deployed skills}
 \label{sec:realeval}
