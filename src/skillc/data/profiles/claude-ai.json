@@ -8,6 +8,6 @@
     "show_widget", "read_me", "read_page", "save_skill",
     "search_mcp_registry", "suggest_connectors", "web_search", "web_fetch",
     "artifacts", "repl",
-    "budget_tokens", "compact_20260112", "count_tokens"
+    "budget_tokens", "count_tokens"
   ]
 }
