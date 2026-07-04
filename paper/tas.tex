@@ -1,0 +1,162 @@
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{stmaryrd}
+\usepackage{mathpartir}
+\providecommand{\llbracket}{[\![}
+\providecommand{\rrbracket}{]\!]}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{graphicx}
+\usepackage{titlesec}
+\usepackage{pifont}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds,shadows,decorations.pathreplacing,calc}
+\usepackage[colorlinks=true]{hyperref}
+
+\definecolor{navy}{RGB}{31,58,95}
+\definecolor{steel}{RGB}{46,74,107}
+\definecolor{boxbg}{RGB}{243,244,246}
+\definecolor{amber}{RGB}{201,138,24}
+\definecolor{okgreen}{RGB}{34,120,80}
+\definecolor{badred}{RGB}{178,52,52}
+\hypersetup{linkcolor=navy,citecolor=navy,urlcolor=steel}
+
+\titleformat{\section}{\normalfont\large\bfseries\sffamily\color{navy}}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\normalfont\normalsize\bfseries\sffamily\color{steel}}{\thesubsection}{0.5em}{}
+\titlespacing*{\section}{0pt}{1.4ex plus .3ex}{0.7ex}
+\titlespacing*{\subsection}{0pt}{1.0ex plus .2ex}{0.5ex}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{proposition}{Proposition}
+\newtheorem{corollary}{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+
+\lstdefinestyle{coq}{basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{boxbg},frame=single,rulecolor=\color{gray!40},
+  framesep=5pt,xleftmargin=4pt,xrightmargin=4pt,columns=fullflexible,
+  keepspaces=true,breaklines=true,aboveskip=6pt,belowskip=6pt}
+
+% notation
+\newcommand{\reach}{\rightsquigarrow}
+\newcommand{\reachs}{\reach^{*}}
+\newcommand{\CapS}{\mathsf{Cap}}
+\newcommand{\Pred}{\mathsf{Pred}}
+\newcommand{\Var}{\mathsf{Var}}
+\newcommand{\Lab}{\mathsf{Lab}}
+\newcommand{\pre}{\mathit{pre}}
+\newcommand{\eff}{\mathit{eff}}
+\newcommand{\Add}{\mathit{Add}}
+\newcommand{\Del}{\mathit{Del}}
+\newcommand{\Asg}{\mathit{Asg}}
+\newcommand{\Nd}{\mathit{Nd}}
+\newcommand{\apply}{\mathrm{apply}}
+\newcommand{\seither}{\mathrm{sp}}
+\newcommand{\dom}{\mathrm{dom}}
+\newcommand{\caps}{\mathrm{caps}}
+\newcommand{\goal}{\mathit{goal}}
+\newcommand{\gphi}{\varphi_{\mathit{goal}}}
+\newcommand{\restr}[1]{{\restriction}#1}
+\newcommand{\achbox}{\vDash\Diamond}
+\newcommand{\id}[1]{\texttt{#1}}
+\newcommand{\coind}{\mathrel{::=^{\mathit{coind}}}}
+\newcommand{\MM}{\mathbb{M}}
+\newcommand{\ppar}{\;\|\;}
+
+%%% new macros
+
+\newcommand{\Pair}[2]{(#1;#2)}
+\newcommand{\prt}[1]{\mathsf{prt}(#1)}
+\newcommand{\set}[1]{\{#1\}}
+
+\setlength{\parskip}{0.35ex}
+\setlength{\parindent}{1.2em}
+
+
+
+\begin{document}
+
+\[
+\begin{array}{rcl}
+G &\coind& \mathsf{p}{\to}\mathsf{q}:\{\ell_i.\,G_i\}_{i\in I}
+  \ \mid\ a@\mathsf{p}.\,G
+  \ \mid\ \checkmark\varphi.\,G
+  \end{array}\]
+
+$\prt{\mathsf p\,\ell\,\mathsf q}=\set{\mathsf{p},\mathsf{q}}$ $\prt{a@\mathsf{p}}=\set{\mathsf{p}}$ $\prt{\checkmark\varphi}=\emptyset$
+
+\begin{mathpar}
+\inferrule[T-Comm]{G_i\vdash \Pair{p[P_i]\ppar\mathsf q[Q_i]\ppar\MM} W \quad \forall i\in I\subseteq J}
+ {\mathsf{p}{\to}\mathsf{q}:\{\ell_i.\,G_i\}_{i\in I}\vdash \Pair {\mathsf p[\mathsf q!\{\ell_i.P_i\}_{i\in I}] \ppar
+  \mathsf q[\mathsf p?\{\ell_j.Q_j\}_{j\in J}] \ppar \MM}W
+  }
+  
+\inferrule[T-Act]{G\vdash\Pair{\mathsf p[P]\ppar\MM} W\quad\langle W\rangle\;a\;\langle W'\rangle}
+  { a@\mathsf{p}.\,G\vdash\Pair{\mathsf p[a.P]\ppar\MM} {W'}
+   }
+   
+   \inferrule[T-Goal]{G\vdash\Pair{\MM} W\quad W\vDash\varphi}
+  { \checkmark\varphi.\,G\vdash\Pair{\MM} {W}
+   }
+\end{mathpar}
+
+
+\begin{mathpar}
+\inferrule[S-Comm]{k\in I\subseteq J}
+  {\Pair{\mathsf p[\mathsf q!\{\ell_i.P_i\}_{i\in I}] \ppar
+   \mathsf q[\mathsf p?\{\ell_j.Q_j\}_{j\in J}] \ppar \MM} W
+   \;\xrightarrow{\ \mathsf p\,\ell_k\,\mathsf q\ }\;
+   \Pair{\mathsf p[P_k]\ppar\mathsf q[Q_k]\ppar\MM} W}
+\and
+\inferrule[S-Act]{\langle W\rangle\;a\;\langle W'\rangle}
+  {\Pair{\mathsf p[a.P]\ppar\MM} W
+   \;\xrightarrow{\ a@\mathsf p\ }\;
+   \Pair{\mathsf p[P]\ppar\MM}{ W'}}
+   \and
+\inferrule[S-Goal]{W\vDash\varphi}
+  {\Pair\MM W
+   \;\xrightarrow{\checkmark\varphi}\;
+    \Pair \MM W}
+\end{mathpar}
+
+\begin{mathpar}
+\inferrule[G-Comm-E]{k\in I}
+  {(\mathsf p{\to}\mathsf q{:}\{\ell_i.G_i\}_{i\in I},\,W)\reach^{\mathsf p\,\ell_k\,\mathsf q}(G_k,\,W)}
+\and
+\inferrule[G-Act-E]{\langle W\rangle\,a\,\langle W'\rangle}
+  {(a@\mathsf p.\,G,\,W)\reach^{a@\mathsf p}(G,\,W')}
+\and
+\inferrule[G-Goal-E]{W\vDash\varphi }
+  {(\checkmark\varphi.\,G,\,W)\reach^{\checkmark\varphi}(G,\,W)}
+\end{mathpar}
+
+\begin{mathpar}
+\inferrule[G-Comm-I]{(G_i,W)\reach^\Lambda (G_i',W')~\forall i\in I\quad\prt{\Lambda}\cap\set{\mathsf{p},\mathsf{q}}=\emptyset}
+  {(\mathsf p{\to}\mathsf q{:}\{\ell_i.G_i\}_{i\in I},\,W)\reach^{\Lambda}(\mathsf p{\to}\mathsf q{:}\{\ell_i.G'_i\}_{i\in I},\,W')}
+\and
+\inferrule[G-Act-I]{(G,W)\reach^\Lambda (G',W')\quad\prt{\Lambda}\cap\set{\mathsf{p}}=\emptyset}
+  {(a@\mathsf p.\,G,\,W)\reach^{\Lambda}(a@\mathsf p.G',\,W')}
+\and
+\inferrule[G-Goal-I]{ (G,W)\reach^\Lambda (G',W')}
+  {(\checkmark\varphi.\,G,\,W)\reach^{\Lambda}(\checkmark\varphi.\,G',\,W')}
+\end{mathpar}
+
+\begin{theorem}[Subject Reduction]
+If $G\vdash \Pair \MM W$ and $\Pair \MM W\xrightarrow\Lambda \Pair {\MM'} {W'}$, then $(G,W)\reach^\Lambda (G',W')$ and $G'\vdash \Pair {\MM'} {W'}$.
+\end{theorem}
+
+\begin{theorem}[Session Fidelity]
+If $G\vdash \Pair \MM W$ and $(G,W)\reach^\Lambda (G',W')$, then $\Pair \MM W\xrightarrow\Lambda \Pair {\MM'} {W'}$ and $G'\vdash \Pair {\MM'} {W'}$.
+\end{theorem}
+
+
+\end{document}
