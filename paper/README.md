@@ -1,45 +1,46 @@
 # The paper
 
 `skillachievability.tex` — *Can This Agent Even Do That? A Decidable
-Goal-Achievability Type Discipline for LLM-Synthesized Agent Skills*
-(extended version), with `skillachievability.pdf` built from it.
+Goal-Achievability Type Discipline for LLM-Synthesized Agent Skills*,
+with `skillachievability.pdf` built from it.
 
-This extended version completes and strengthens the original draft:
+This revision replaces the projection-based conformance system of the earlier
+extended draft (local types, projection with merge, a separate Gay–Hole
+subtyping relation) with a **direct typing discipline**: `T-Comm`/`T-Act`/
+`T-Goal` type a whole session configuration against the global protocol in one
+coinductive judgment, with no local-type grammar, no projection function, and
+no merge operator. Both directions of session subtyping and the
+unobserved-choice (deadlock) check are structural side conditions of a single
+rule (`T-Comm`), rather than a separate relation and a separate realizability
+check. The existential reachability machinery that decides achievability over
+the pack (`Γ;G ⊨ ◇φ_goal`, §4.2/§5.4) is unchanged and still needs no session
+`𝕄` at all — it is what lets the checker run before any skill is declared.
 
-**Proofs written out** (the draft had statements or sketches):
-- Theorem 2 (tolerance soundness) — full proof via monotonicity of
-  reachability in the step relation, matching Coq `reach_mono`/`tolerance_sound`.
-- Theorem 3 (capability monotonicity) — full proof, including why the other
-  judgment premises are unaffected.
-- Theorem 4 (decidability) — the proof now exhibits the actual decision
-  procedure the implementation runs (symbolic configurations, predicate-state
-  saturation, havoc widening at back edges) and proves termination,
-  refutation-soundness of the widening, and exactness of the pruning.
-- Theorem 5 (undecidability under autonomy) — a worked reduction from CFSM
-  control-state reachability (courier-participant encoding of FIFO channels).
+**New in this revision:**
+- §5.2 (`T-Comm`/`T-Act`/`T-Goal`) replaces §5.2's old local-type process typing,
+  §4.3's projection/realizability, and §4.4's subtyping.
+- Theorem 4 (`Direct-typing safety`, §6.3): deadlock-freedom and preservation
+  for the new judgment, mechanized from scratch (the old draft could only cite
+  this guarantee from the projection-based literature).
+- `proof/DirectTyping.v`: the new Coq development — `type_directed_safety` /
+  `progress`, and `HandoffInstance`, mechanizing the paper's own planner/worker
+  example on both sides (the good handoff is typed and reaches the goal; the
+  bad handoff — both roles start with an input — is proved `Stuck`, hence
+  untypeable by any non-trivial protocol).
+- A corrected `T-Act` world/type pairing (lockstep with `World-Act`/`G-Act`) and
+  a generalized `T-Comm` recovering *both* `Sub-Int` and `Sub-Ext` directly.
+- §7 now states plainly that the reference implementation's conformance check
+  (`session.py`: projection, merge, Gay–Hole subtyping) is an *algorithmic*
+  decision procedure for the *declarative* judgment of §5.2 — asserted
+  equivalent, not (yet) mechanized.
 
-**New results (§6.6 and §7), from implementing and testing the compiler on
-real skills:**
-- Lemma (establisher closure) + Corollary (protocol-independent refutation):
-  a goal needing an atom no capability establishes is refuted for *every*
-  protocol over Γ — the certificate survives the undecidable autonomous
-  fragment.
-- Observed choice (Proj-Obs) + soundness by desugaring into broadcasts;
-  the observation that unobserved choice is a ≥3-party asynchronous
-  phenomenon, which is why conversation-embedded skills were falsely refuted.
-- Adversarial (must-)achievability with compositional refutation soundness
-  inherited from Theorem 1.
-- Counterexample-guided compaction repair at the trust boundary, and the
-  admission-control (SkillSpector-like) pre-pass.
+This intentionally supersedes an earlier, more extended draft (establisher
+closure, `Proj-Obs`, adversarial achievability, the 32-bundle real-skill study)
+in favor of this direct-typing core; that material remains in git history and
+is not part of this revision's claims.
 
-**Evaluation extended** with the real-skill study: 32 public bundles across
-capability profiles, mutation testing in both directions, and the live
-semantic-compaction loop (4/4 deployed skills achievable, 6/6 seeded faults
-caught with the wound named). See `docs/SEMANTIC_VALIDATION.md` and
-`docs/REAL_SKILLS_REPORT.md` in the repository for the raw runs.
-
-Citations marked `[verify]` are placeholders the original draft flagged for
-bibliographic verification and remain flagged.
+Citations marked `[verify]` are placeholders flagged for bibliographic
+verification and remain flagged.
 
 ## Build
 
@@ -47,16 +48,25 @@ bibliographic verification and remain flagged.
 pdflatex skillachievability.tex && pdflatex skillachievability.tex
 ```
 
-Requires a TeX Live with `mathpartir` (package `texlive-science`) and the
-usual AMS/TikZ packages (`texlive-latex-extra`).
+Requires a TeX Live with `mathpartir` and `lmodern` (`texlive-science`,
+`lmodern`) and the usual AMS/TikZ packages (`texlive-latex-extra`,
+`texlive-pictures`, `texlive-fonts-extra`).
 
 ## Relation to the Coq development
 
-`../proof/SkillAchievability.v` mechanizes the trusted core's soundness
-theorems (T1 refutation soundness, T2 tolerance, T3 capability monotonicity,
-plus the concrete FlightInstance), axiom-free under Coq 8.18 — it is the
-theorem checker for the paper's central claims, not the compiler. The
-compiler is the `skillc` Python package in this repository. The newer results
-(establisher closure, the decision procedure of Theorem 4, Proj-Obs,
-adversarial soundness) are proved in the paper; mechanizing them is listed as
-future work in §11.
+Two files under `../proof/`, both axiom-free under Coq 8.18 (`Print
+Assumptions`):
+
+- `SkillAchievability.v` — the reachability soundness core: refutation
+  soundness (T1), tolerance soundness (T2), capability monotonicity (T3), and
+  the `FlightInstance` concrete instance (§2, §6.2).
+- `DirectTyping.v` — the direct-typing safety core: `type_directed_safety` /
+  `progress` (Theorem 4, §6.3), and `HandoffInstance`, the mechanized
+  planner/worker example.
+
+These are the theorem checkers for the paper's central claims, not the
+compiler. The compiler is the `skillc` Python package in this repository.
+Decidability (Theorem 5) and undecidability under autonomy (Theorem 6) are
+proved on paper, not mechanized; mechanizing the decision procedure itself, the
+declarative/algorithmic conformance equivalence, and recursive ($\mu X.G$)
+protocols are future work (§10).
