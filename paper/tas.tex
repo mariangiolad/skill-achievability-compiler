@@ -73,14 +73,22 @@
 \newcommand{\ppar}{\;\|\;}
 
 %%% new macros
-
+\newcommand{\cp}[1]{\mathsf{cap}(#1)}
 \newcommand{\Pair}[2]{(#1;#2)}
 \newcommand{\prt}[1]{\mathsf{prt}(#1)}
 \newcommand{\set}[1]{\{#1\}}
-
+\newcommand{\End}{\mathsf{End}}
 \setlength{\parskip}{0.35ex}
 \setlength{\parindent}{1.2em}
-
+\newcommand {\IInfer} [5] [] {
+  \inferrule*[%
+    fraction={===}, 
+    left={\textsc{#2}},%
+    right={$\begin{array}{l} #5 \end{array}$}, %{$ #4 $},%
+    vcenter,%
+    #1
+  ]%
+  {#3}{#4}}
 
 
 \begin{document}
@@ -89,23 +97,34 @@
 \begin{array}{rcl}
 G &\coind& \mathsf{p}{\to}\mathsf{q}:\{\ell_i.\,G_i\}_{i\in I}
   \ \mid\ a@\mathsf{p}.\,G
-  \ \mid\ \checkmark\varphi.\,G
+  \ \mid\ \checkmark\varphi.\,G \ \mid\ \End
   \end{array}\]
+
+
+  $\prt{\mathsf{p}{\to}\mathsf{q}:\{\ell_i.\,G_i\}_{i\in I}}=\set{\mathsf{p},\mathsf{q}}\cup\bigcup_{i\in I}\prt{G_i}$ $\prt{a@\mathsf{p}.G}=\set{\mathsf{p}}\cup\prt G$ $\prt{\checkmark\varphi.G}=\prt G$ $\prt\End=\emptyset$
 
 $\prt{\mathsf p\,\ell\,\mathsf q}=\set{\mathsf{p},\mathsf{q}}$ $\prt{a@\mathsf{p}}=\set{\mathsf{p}}$ $\prt{\checkmark\varphi}=\emptyset$
 
+$\prt\MM=\set{\mathsf p\,\mid \, \MM\equiv \mathsf p[P] ~\&~ P\neq 0}$
+
+$\cp{\mathsf{p}{\to}\mathsf{q}:\{\ell_i.\,G_i\}_{i\in I}}=\set{\mathsf p\,\ell_i\,\mathsf q\,\mid\, i\in I}\cup\bigcup_{i\in I}\cp{G_i}$ $\cp{a@\mathsf{p}.G}=\set{a@\mathsf{p}}\cup\cp G$ $\cp{\checkmark\varphi.G}=\set{\checkmark\varphi}\cup\cp G$ $\prt\End=\emptyset$
+
 \begin{mathpar}
-\inferrule[T-Comm]{G_i\vdash \Pair{p[P_i]\ppar\mathsf q[Q_i]\ppar\MM} W \quad \forall i\in I\subseteq J}
+\IInfer{[T-Comm}{G_i\vdash \Pair{\mathsf p[P_i]\ppar\mathsf q[Q_i]\ppar\MM} W \quad \forall i\in I\subseteq J\qquad\prt{\mathsf{p}{\to}\mathsf{q}:\{\ell_i.\,G_i\}_{i\in I}}=\prt\MM\cup\set{\mathsf{p},\mathsf{q}}}
  {\mathsf{p}{\to}\mathsf{q}:\{\ell_i.\,G_i\}_{i\in I}\vdash \Pair {\mathsf p[\mathsf q!\{\ell_i.P_i\}_{i\in I}] \ppar
   \mathsf q[\mathsf p?\{\ell_j.Q_j\}_{j\in J}] \ppar \MM}W
-  }
+  }{}{}
   
-\inferrule[T-Act]{G\vdash\Pair{\mathsf p[P]\ppar\MM} W\quad\langle W\rangle\;a\;\langle W'\rangle}
+\IInfer{T-Act}{G\vdash\Pair{\mathsf p[P]\ppar\MM} W\quad\langle W\rangle\;a\;\langle W'\rangle\qquad \prt G\cup\set{\mathsf{p}}=\prt\MM\cup\set{\mathsf{p}}}
   { a@\mathsf{p}.\,G\vdash\Pair{\mathsf p[a.P]\ppar\MM} {W'}
-   }
+   }{}{}
    
-   \inferrule[T-Goal]{G\vdash\Pair{\MM} W\quad W\vDash\varphi}
+  \IInfer{T-Goal}{G\vdash\Pair{\MM} W\quad W\vDash\varphi\qquad \prt G=\prt\MM}
   { \checkmark\varphi.\,G\vdash\Pair{\MM} {W}
+   }{}{}
+   
+   \inferrule[T-End]{}
+  { \End\vdash\Pair{\mathsf p[0]} {W}
    }
 \end{mathpar}
 
@@ -140,14 +159,14 @@ $\prt{\mathsf p\,\ell\,\mathsf q}=\set{\mathsf{p},\mathsf{q}}$ $\prt{a@\mathsf{p
 \end{mathpar}
 
 \begin{mathpar}
-\inferrule[G-Comm-I]{(G_i,W)\reach^\Lambda (G_i',W')~\forall i\in I\quad\prt{\Lambda}\cap\set{\mathsf{p},\mathsf{q}}=\emptyset}
-  {(\mathsf p{\to}\mathsf q{:}\{\ell_i.G_i\}_{i\in I},\,W)\reach^{\Lambda}(\mathsf p{\to}\mathsf q{:}\{\ell_i.G'_i\}_{i\in I},\,W')}
+\IInfer{G-Comm-I}{(G_i,W)\reach^\Lambda (G_i',W')\quad\Lambda\in\cp{G_i}\quad\forall i\in I\quad\prt{\Lambda}\cap\set{\mathsf{p},\mathsf{q}}=\emptyset}
+  {(\mathsf p{\to}\mathsf q{:}\{\ell_i.G_i\}_{i\in I},\,W)\reach^{\Lambda}(\mathsf p{\to}\mathsf q{:}\{\ell_i.G'_i\}_{i\in I},\,W')}{}{}
 \and
-\inferrule[G-Act-I]{(G,W)\reach^\Lambda (G',W')\quad\prt{\Lambda}\cap\set{\mathsf{p}}=\emptyset}
-  {(a@\mathsf p.\,G,\,W)\reach^{\Lambda}(a@\mathsf p.G',\,W')}
+\IInfer{G-Act-I}{(G,W)\reach^\Lambda (G',W')\quad\Lambda\in\cp{G}\quad\prt{\Lambda}\cap\set{\mathsf{p}}=\emptyset}
+  {(a@\mathsf p.\,G,\,W)\reach^{\Lambda}(a@\mathsf p.G',\,W')}{}{}
 \and
-\inferrule[G-Goal-I]{ (G,W)\reach^\Lambda (G',W')}
-  {(\checkmark\varphi.\,G,\,W)\reach^{\Lambda}(\checkmark\varphi.\,G',\,W')}
+\IInfer{G-Goal-I}{ (G,W)\reach^\Lambda (G',W')\quad\Lambda\in\cp{G}}
+  {(\checkmark\varphi.\,G,\,W)\reach^{\Lambda}(\checkmark\varphi.\,G',\,W')}{}{}
 \end{mathpar}
 
 \begin{theorem}[Subject Reduction]
