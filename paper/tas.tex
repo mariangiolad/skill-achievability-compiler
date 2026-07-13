@@ -115,8 +115,8 @@ $\cp{\mathsf{p}{\to}\mathsf{q}:\{\ell_i.\,G_i\}_{i\in I}}=\set{\mathsf p\,\ell_i
   \mathsf q[\mathsf p?\{\ell_j.Q_j\}_{j\in J}] \ppar \MM}W
   }{}{}
   
-\IInfer{T-Act}{G\vdash\Pair{\mathsf p[P]\ppar\MM} W\quad\langle W\rangle\;a\;\langle W'\rangle\qquad \prt G\cup\set{\mathsf{p}}=\prt\MM\cup\set{\mathsf{p}}}
-  { a@\mathsf{p}.\,G\vdash\Pair{\mathsf p[a.P]\ppar\MM} {W'}
+\IInfer{T-Act}{G\vdash\Pair{\mathsf p[P]\ppar\MM} {W'}\quad\langle W\rangle\;a\;\langle W'\rangle\qquad \prt G\cup\set{\mathsf{p}}=\prt\MM\cup\set{\mathsf{p}}}
+  { a@\mathsf{p}.\,G\vdash\Pair{\mathsf p[a.P]\ppar\MM} {W}
    }{}{}
    
   \IInfer{T-Goal}{G\vdash\Pair{\MM} W\quad W\vDash\varphi\qquad \prt G=\prt\MM}
