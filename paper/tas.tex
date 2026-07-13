@@ -107,10 +107,10 @@ $\prt{\mathsf p\,\ell\,\mathsf q}=\set{\mathsf{p},\mathsf{q}}$ $\prt{a@\mathsf{p
 
 $\prt\MM=\set{\mathsf p\,\mid \, \MM\equiv \mathsf p[P] ~\&~ P\neq 0}$
 
-$\cp{\mathsf{p}{\to}\mathsf{q}:\{\ell_i.\,G_i\}_{i\in I}}=\set{\mathsf p\,\ell_i\,\mathsf q\,\mid\, i\in I}\cup\bigcup_{i\in I}\cp{G_i}$ $\cp{a@\mathsf{p}.G}=\set{a@\mathsf{p}}\cup\cp G$ $\cp{\checkmark\varphi.G}=\set{\checkmark\varphi}\cup\cp G$ $\prt\End=\emptyset$
+$\cp{\mathsf{p}{\to}\mathsf{q}:\{\ell_i.\,G_i\}_{i\in I}}=\set{\mathsf p\,\ell_i\,\mathsf q\,\mid\, i\in I}\cup\bigcup_{i\in I}\cp{G_i}$ $\cp{a@\mathsf{p}.G}=\set{a@\mathsf{p}}\cup\cp G$ $\cp{\checkmark\varphi.G}=\set{\checkmark\varphi}\cup\cp G$ $\cp\End=\emptyset$
 
 \begin{mathpar}
-\IInfer{[T-Comm}{G_i\vdash \Pair{\mathsf p[P_i]\ppar\mathsf q[Q_i]\ppar\MM} W \quad \forall i\in I\subseteq J\qquad\prt{\mathsf{p}{\to}\mathsf{q}:\{\ell_i.\,G_i\}_{i\in I}}=\prt\MM\cup\set{\mathsf{p},\mathsf{q}}}
+\IInfer{T-Comm}{G_i\vdash \Pair{\mathsf p[P_i]\ppar\mathsf q[Q_i]\ppar\MM} W \quad \forall i\in I\subseteq J\qquad\prt{\mathsf{p}{\to}\mathsf{q}:\{\ell_i.\,G_i\}_{i\in I}}=\prt\MM\cup\set{\mathsf{p},\mathsf{q}}}
  {\mathsf{p}{\to}\mathsf{q}:\{\ell_i.\,G_i\}_{i\in I}\vdash \Pair {\mathsf p[\mathsf q!\{\ell_i.P_i\}_{i\in I}] \ppar
   \mathsf q[\mathsf p?\{\ell_j.Q_j\}_{j\in J}] \ppar \MM}W
   }{}{}
